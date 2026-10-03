@@ -2,6 +2,10 @@
 
 import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { ErrorState } from '@/components/ui/ErrorState';
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
@@ -27,27 +31,24 @@ export default function SignInPage() {
   };
 
   return (
-    <main className="mx-auto max-w-md px-6 py-16">
-      <h1 className="text-3xl font-bold text-fg">Sign in</h1>
-      <p className="mt-2 text-sm text-muted">We'll email you a one-time link.</p>
-      <form onSubmit={send} className="mt-6 space-y-3">
-        <input
+    <main className="mx-auto max-w-md">
+      <PageHeader title="Sign In" subtitle="We'll email you a one-time link." />
+      <form onSubmit={send} className="space-y-3">
+        <Input
           type="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="input-base"
+          aria-label="Email"
         />
-        <button type="submit" disabled={status === 'sending'} className="btn-primary w-full">
+        <Button type="submit" disabled={status === 'sending'} className="w-full">
           {status === 'sending' ? 'Sending…' : 'Send magic link'}
-        </button>
+        </Button>
       </form>
-      {msg && (
-        <p
-          role="status"
-          className={`mt-4 text-sm ${status === 'error' ? 'text-danger' : 'text-accent'}`}
-        >
+      {status === 'error' && <div className="mt-4"><ErrorState title="Sign-in failed" detail={msg} /></div>}
+      {status === 'sent' && (
+        <p role="status" className="mt-4 text-sm text-success">
           {msg}
         </p>
       )}

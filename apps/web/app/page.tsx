@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { Watermark, ArcWithDots, GlassIconButton } from '@/components/ui/Decoration';
 
 const tiles = [
   { href: '/sign-in', title: 'Sign in', desc: 'Email magic-link, then access everything.' },
@@ -10,17 +12,32 @@ const tiles = [
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
-      <h1 className="text-4xl font-bold text-fg">AI Learning</h1>
-      <p className="mt-3 text-muted">Practice English with an AI tutor. Built for IELTS, grammar, vocabulary.</p>
-      <div className="mt-10 grid gap-4 sm:grid-cols-2">
+    <main className="relative overflow-hidden pt-2 sm:pt-6">
+      <Watermark>LEARN</Watermark>
+
+      <section className="relative">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="fluid-display-xl text-fg">AI LEARNING</h1>
+            <p className="mt-3 max-w-md text-sm text-muted">
+              Practice English with an AI tutor. Built for IELTS, grammar, vocabulary.
+            </p>
+          </div>
+          <GlassIconButton aria-label="Brand">⚡</GlassIconButton>
+        </div>
+        <ArcWithDots className="mt-4 h-12 w-56" />
+      </section>
+
+      <section className="relative mt-8 grid gap-4 sm:mt-10 sm:grid-cols-2 lg:grid-cols-3">
         {tiles.map((t) => (
-          <Link key={t.href} href={t.href} className="card transition hover:border-secondary hover:shadow-sm">
-            <div className="text-lg font-semibold text-fg">{t.title}</div>
-            <div className="mt-1 text-sm text-muted">{t.desc}</div>
+          <Link key={t.href} href={t.href} className="block focus:outline-none">
+            <GlassCard hoverable className="h-full transition-transform hover:-translate-y-0.5">
+              <div className="fluid-display-md text-fg">{t.title}</div>
+              <div className="mt-2 text-sm text-muted">{t.desc}</div>
+            </GlassCard>
           </Link>
         ))}
-      </div>
+      </section>
     </main>
   );
 }
