@@ -1,0 +1,288 @@
+{
+  "startedAt": "2026-10-03T19:12:23.088Z",
+  "steps": [
+    {
+      "step": "bundle + chunk corpus inspection",
+      "bundle": "page-180d77a6ea24a779.js",
+      "chunkCount": 12,
+      "totalBytes": 1097859,
+      "newIdentifiers": [
+        "Generate with AI",
+        "Manual",
+        "sourceText",
+        "Paste notes, a chapter",
+        "hint",
+        "explanation",
+        "Hint (H)",
+        "AI Explain (E)",
+        "simpler",
+        "deeper",
+        "Reset progress",
+        "Export JSON",
+        "Export CSV",
+        "prose-quiet",
+        "Modal",
+        "role:\"tablist",
+        "/api/flashcards/decks/generate",
+        "/api/flashcards/decks/import",
+        "/api/flashcards/cards"
+      ],
+      "missingNew": [],
+      "legacyIdentifiers": [
+        "\"Add card\""
+      ],
+      "perChunkBytes": [
+        {
+          "url": "9923a0e2-1a45aa5d099bff40.js",
+          "bytes": 173019
+        },
+        {
+          "url": "812-52aaa9f8a3640ba4.js",
+          "bytes": 173906
+        },
+        {
+          "url": "757-1c39734308209edd.js",
+          "bytes": 24970
+        },
+        {
+          "url": "layout-eabf7c543fba44e0.js",
+          "bytes": 620
+        },
+        {
+          "url": "734-3770c0957b9448fd.js",
+          "bytes": 30605
+        },
+        {
+          "url": "997-e0a623f8efe0fd7a.js",
+          "bytes": 8536
+        },
+        {
+          "url": "446-966a823eb840d114.js",
+          "bytes": 11509
+        },
+        {
+          "url": "layout-768fe6e7de123fd2.js",
+          "bytes": 8441
+        },
+        {
+          "url": "6b5bb80a-8eea156d8f8ac45b.js",
+          "bytes": 261021
+        },
+        {
+          "url": "680-79db72888a968779.js",
+          "bytes": 359377
+        },
+        {
+          "url": "612-4266a6fdcd480145.js",
+          "bytes": 10813
+        },
+        {
+          "url": "page-180d77a6ea24a779.js",
+          "bytes": 35042
+        }
+      ]
+    },
+    {
+      "step": "endpoint 401+CORS probe",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/flashcards/decks/generate",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "POST",
+          "path": "/api/flashcards/decks",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "POST",
+          "path": "/api/flashcards/decks/abc/cards/more",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/flashcards/decks/abc",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/flashcards/decks/abc",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "POST",
+          "path": "/api/flashcards/decks/abc/reset",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "GET",
+          "path": "/api/flashcards/decks/abc/export?format=json",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "POST",
+          "path": "/api/flashcards/decks/import",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "GET",
+          "path": "/api/flashcards/decks/abc/cards",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "POST",
+          "path": "/api/flashcards/cards/abc/hint",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        },
+        {
+          "method": "POST",
+          "path": "/api/flashcards/cards/abc/explain",
+          "status": 401,
+          "acao": "https://web-nine-rho-1j664llz3j.vercel.app",
+          "code": "UNAUTHORIZED",
+          "bodyPreview": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+        }
+      ]
+    },
+    {
+      "step": "GET /api/health/models",
+      "workersHealthy": 6,
+      "workersTotal": 6,
+      "openrouter429": 6,
+      "openrouterTotal": 6
+    },
+    {
+      "step": "POST /api/flashcards/decks/generate (no auth)",
+      "status": 401,
+      "headers": {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+        "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+        "access-control-max-age": "600",
+        "alt-svc": "h3=\":443\"; ma=86400",
+        "cf-ray": "a44e425398e4dc25-DAC",
+        "connection": "keep-alive",
+        "content-length": "52",
+        "content-type": "application/json",
+        "date": "Sat, 03 Oct 2026 19:12:33 GMT",
+        "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+        "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=JguRSiGPKdBioYqo72AusCdcFBWz9sudCn3UiueHAjDU2DHDZCKwt4of3AkKFH%2FEyXkxwzQDfCkY%2Fe0rBGkJQpz%2F5VeCZqLwd7fVD6qbpkVfoRJz%2BrnzkpE4tdJEzcEvdIhg%2FMNeQVWixIFVhb5nQ6Q3bbhwHZzoeT4wWYvBK4A%3D\"}]}",
+        "server": "cloudflare",
+        "vary": "Origin"
+      },
+      "body": {
+        "code": "UNAUTHORIZED",
+        "message": "Sign in required"
+      }
+    },
+    {
+      "step": "playwright /flashcards (no auth)",
+      "finalUrl": "https://web-nine-rho-1j664llz3j.vercel.app/sign-in?returnTo=%2Fflashcards",
+      "redirectedToSignIn": true,
+      "hasReturnToFlashcards": true,
+      "visibleText": "QUANTARA\nDark\n\nFOUNDER & CEO\n\nLearn the universe of knowledge.\n\nAn AI tutor for CS, math, physics, and code.\n\nStreaming answers to CS, math, and code questions.\nFlashcards with spaced repetition so concepts stick.\nTimed mini-mocks across every STEM subject.\nSIGN IN\n\nUse your Google account or get a one-time email link.\n\nContinue with Google\nOR\nSend magic link\n\nFOUNDER & CEO\n\nBikash Talukder\n\nCS & AI Engineer\n\n© 2026 Quantara · Privacy · Terms",
+      "networkRequests": [
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=9f6U%2BwbhIYX%2FQKfd2N8DpupeIhAUJVW%2FoKmogehe4dwDTO%2FOUHOveFwsM18BXRH84cG9Ks8R1RbDsbUb8iSMQ3flyeQHFDitKX8NLkkhgiWdhemCv3bPvuc9%2FIkpgqin02VDa7hvlrXiQziCGm7vir6PQoso42H%2F5B%2Be%2B58aW6I%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 19:12:36 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e42644beaa443-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=9A4aHwTPjOdEQcV7XSBAgGsMcLn%2F9wVfemTRBiQdWeHQUvbc66IoYTrU7hvTz0qBSUXHAn5grpoyaTqnN4%2BGzRthNHdM8RwDvDAb4TLrsKZn3Ph8LtVv6qHnkDBHJIXmmNuFts9UUxtJ0bduwWKAv5NRSgPBseVQg3Kxcl8ZYsA%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 19:12:36 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e42655d14a443-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=J8LPzify8%2BTtmlWgw4gzzGaQpvJ4Xeq%2BJQPrspvz6Wv9u8caxtt09xzO%2BWRsImkHYIjWqVPfn9TNDAF3S8V6hZbRpsdD2lnqzmbDGSc11cnkfyUAv90FPHnGpKDzI%2FD0u3vwwCHRKFplG4MyIBgQ1Sak4ft35jtY%2F3rVfPwjJzI%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "server-timing": "cfExtPri",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 19:12:36 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "priority": "u=1,i",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e42669c42659b-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        }
+      ]
+    }
+  ]
+}
