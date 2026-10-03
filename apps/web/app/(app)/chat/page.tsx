@@ -211,8 +211,38 @@ export default function ChatPage() {
   const [mode, setMode] = useState<ChatMode>('general');
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [historyMobileOpen, setHistoryMobileOpen] = useState(false);
+  // Sidebar (rail vs panel) state on ≥sm. Default open on wide screens,
+  // closed on tablet. Persisted in localStorage with a try/catch in case
+  // storage is disabled (private browsing, quota, etc).
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Hydrate sidebar preference from localStorage + viewport.
+  useEffect(() => {
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem('chat:sidebar');
+    } catch {
+      /* localStorage disabled */
+    }
+    const wide = window.matchMedia?.('(min-width: 1280px)').matches;
+    if (stored === 'true' || stored === 'false') {
+      setSidebarOpen(stored === 'true');
+    } else {
+      setSidebarOpen(wide);
+    }
+  }, []);
+
+  // Persist on change. Same key so the chat page always reads/writes the
+  // same place.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('chat:sidebar', sidebarOpen ? 'true' : 'false');
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarOpen]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -542,6 +572,8 @@ export default function ChatPage() {
         refreshKey={historyRefreshKey}
         mobileOpen={historyMobileOpen}
         onCloseMobile={() => setHistoryMobileOpen(false)}
+        collapsed={!sidebarOpen}
+        onToggleCollapsed={() => setSidebarOpen((v) => !v)}
       />
 
       {/* === Main === */}
@@ -562,6 +594,17 @@ export default function ChatPage() {
               >
                 <ChatBubbleIcon size={16} decorative />
                 History
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="hidden sm:inline-flex"
+                onClick={() => setSidebarOpen((v) => !v)}
+                aria-label={sidebarOpen ? 'Collapse history' : 'Open history'}
+                title={sidebarOpen ? 'Collapse history' : 'Open history'}
+              >
+                {sidebarOpen ? '«' : '»'}
               </Button>
             </div>
           }

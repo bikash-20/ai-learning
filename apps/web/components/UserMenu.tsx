@@ -1,24 +1,24 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useSession } from '@/lib/useSession';
+import { AvatarMenuBody } from '@/components/ui/AvatarMenu';
 
 /**
  * Compact user menu shown in the navbar once the session resolves.
  *
  * - Loading: placeholder pill, no menu.
  * - Signed out: "Sign in" link to /sign-in.
- * - Signed in: avatar / initials button → dropdown with email + "Sign out".
- *   Sign out calls Better Auth signOut, clears local session state, and
- *   navigates to /sign-in. There is NO session count cap: each sign-out
- *   followed by sign-in works, on as many devices as the user wants.
+ * - Signed in: avatar / initials button → dropdown anchored under it
+ *   that shows name/email + Theme + Logout.
+ *
+ * The dropdown body is `<AvatarMenuBody>`, shared with
+ * `<MobileAvatarMenu>` so desktop and mobile stay in lockstep.
  */
 export const UserMenu = () => {
-  const router = useRouter();
-  const { loading, user, signOut } = useSession();
+  const { loading, user } = useSession();
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -53,13 +53,6 @@ export const UserMenu = () => {
 
   const initials = (user.name || user.email).slice(0, 1).toUpperCase();
 
-  const handleSignOut = async () => {
-    setOpen(false);
-    await signOut();
-    // Hard navigation so the (app) guard re-runs and lands at /sign-in.
-    router.replace('/sign-in');
-  };
-
   return (
     <div ref={ref} className="relative ml-1">
       <button
@@ -79,27 +72,9 @@ export const UserMenu = () => {
       {open && (
         <div
           role="menu"
-          className="glass absolute right-0 top-[calc(100%+0.5rem)] z-40 w-56 rounded-glass p-2 text-sm"
+          className="glass absolute right-0 top-[calc(100%+0.5rem)] z-40 w-64 rounded-glass p-3 text-sm"
         >
-          <div className="px-2 py-1.5 text-xs text-muted">Signed in as</div>
-          <div className="px-2 pb-2 text-sm text-fg break-all">{user.email}</div>
-          <div className="border-t border-glass-border" />
-          <a
-            href="/explore"
-            role="menuitem"
-            className="block rounded-md px-2 py-2 text-fg hover:bg-glass-bg/40"
-            onClick={() => setOpen(false)}
-          >
-            Explore
-          </a>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={handleSignOut}
-            className="block w-full rounded-md px-2 py-2 text-left text-fg hover:bg-glass-bg/40"
-          >
-            Logout
-          </button>
+          <AvatarMenuBody onAfterAction={() => setOpen(false)} />
         </div>
       )}
     </div>

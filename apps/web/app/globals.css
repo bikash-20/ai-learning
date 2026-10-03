@@ -322,6 +322,18 @@ body {
 .prose-quiet .katex { font-size: 1.02em; }
 .prose-quiet .katex-display { margin: 0.5rem 0; overflow-x: auto; }
 
+/* ---------- Chat sidebar (collapsible rail) ---------- */
+/* Width transition for the chat history rail. The .chat-sidebar-shell
+   element gets a fixed width on ≥sm so the rail can shrink from full
+   panel → 64px icon rail when collapsed. prefers-reduced-motion
+   disables the transition. */
+.chat-sidebar-shell {
+  transition: width 220ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-sidebar-shell { transition: none; }
+}
+
 /* ---------- Modal (native <dialog>) ---------- */
 .modal-card {
   background: var(--glass-bg);

@@ -1,20 +1,22 @@
 /**
- * Hub tiles configuration — single source of truth for the /explore hub,
- * the mobile bottom-tab bar, and any other nav that surfaces the main
- * learning surfaces. Adding a new surface means adding a row here and
- * nothing else.
+ * Hub tiles configuration — single source of truth for the /explore hub.
+ * Adding a new surface means adding a row here and nothing else.
  *
  * Fields:
  *   - id: stable key
- *   - title: shown on the tile and tab bar
- *   - desc: one-line description on the tile (hidden on tab bar)
+ *   - title: shown on the tile
+ *   - desc: one-line description on the tile
  *   - iconId: key into ICONS so this config stays serializable + tree-
  *     shake friendly. Inline SVGs live in `components/ui/icons.tsx`.
  *   - href: where the tile takes you
- *   - tabOrder: index in the mobile bottom tab bar (1-5). Omit to hide.
  *   - accent: tile accent class — uses only CSS tokens, no hex.
  *   - adminOnly: hidden unless the session user has role 'admin'
- *   - extras: optional per-tile add-ons (difficulty chips, progress bar, etc.)
+ *   - extras: optional per-tile add-ons (currently only "progress"
+ *     with a 0-100 value, used by Flashcards).
+ *
+ * The mobile-first redesign removed the bottom-tab navigation, so the
+ * `tabOrder` field and `TAB_TILES` helper that the deleted BottomTabBar
+ * used are gone too.
  */
 
 import type { ComponentType } from 'react';
@@ -26,7 +28,6 @@ import {
   GrammarIcon,
   ExamIcon,
   ProgressIcon,
-  SettingsIcon,
   AdminIcon,
   type IconProps,
 } from '@/components/ui/icons';
@@ -39,7 +40,6 @@ export type TileIconId =
   | 'grammar'
   | 'exam'
   | 'progress'
-  | 'settings'
   | 'admin';
 
 /** Map from a stable id to the icon component. Keeps the config
@@ -53,13 +53,11 @@ export const ICONS: Record<TileIconId, ComponentType<IconProps>> = {
   grammar: GrammarIcon,
   exam: ExamIcon,
   progress: ProgressIcon,
-  settings: SettingsIcon,
   admin: AdminIcon,
 };
 
 export type TileExtras =
-  | { kind: 'progress'; /** 0-100. Real value comes from real data, see useProgress. */ value: number }
-  | { kind: 'chips'; chips: Array<{ label: string; onClick?: () => void }> };
+  | { kind: 'progress'; /** 0-100. Real value comes from real data, see useProgress. */ value: number };
 
 export type HubTile = {
   id: string;
@@ -67,13 +65,18 @@ export type HubTile = {
   desc: string;
   iconId: TileIconId;
   href: string;
-  tabOrder?: number;
   accent?: 'accent' | 'primary' | 'success' | 'warning' | 'danger';
   /** Hidden unless the session user has role 'admin'. */
   adminOnly?: boolean;
   extras?: TileExtras;
 };
 
+/**
+ * Hub tile ordering. Order matters — these are presented top-to-bottom
+ * on /explore. The first three (Flashcards, Quiz, passage) are the
+ * marquee practice surfaces; Chat lives as the hero CTA above the grid.
+ * Admin sits last so it's easy to skip.
+ */
 export const HUB_TILES: HubTile[] = [
   {
     id: 'flashcards',
@@ -81,7 +84,6 @@ export const HUB_TILES: HubTile[] = [
     desc: 'Spaced-repetition decks that adapt to you.',
     iconId: 'flashcards',
     href: '/flashcards',
-    tabOrder: 1,
     accent: 'accent',
     extras: { kind: 'progress', value: 0 },
   },
@@ -91,12 +93,7 @@ export const HUB_TILES: HubTile[] = [
     desc: 'Smart adaptive questions on any topic.',
     iconId: 'quiz',
     href: '/quiz',
-    tabOrder: 2,
     accent: 'primary',
-    extras: { kind: 'chips', chips: [
-      { label: 'Easy' },
-      { label: 'Hard' },
-    ] },
   },
   {
     id: 'quiz-from-passage',
@@ -112,7 +109,6 @@ export const HUB_TILES: HubTile[] = [
     desc: 'Authored word lists with examples.',
     iconId: 'vocab',
     href: '/vocab',
-    tabOrder: 3,
     accent: 'accent',
   },
   {
@@ -140,14 +136,6 @@ export const HUB_TILES: HubTile[] = [
     accent: 'success',
   },
   {
-    id: 'settings',
-    title: 'Settings',
-    desc: 'AI explanations, theme, and per-user toggles.',
-    iconId: 'settings',
-    href: '/settings',
-    accent: 'accent',
-  },
-  {
     id: 'admin',
     title: 'Admin',
     desc: 'Feature flags, rate-limit overrides, AI cache.',
@@ -158,13 +146,8 @@ export const HUB_TILES: HubTile[] = [
   },
 ];
 
-/** The five tiles that surface in the mobile bottom bar. */
-export const TAB_TILES = (isAdmin: boolean): HubTile[] =>
-  HUB_TILES
-    .filter((t) => t.tabOrder !== undefined && (!t.adminOnly || isAdmin))
-    .sort((a, b) => (a.tabOrder! - b.tabOrder!));
-
-/** The grid tiles — excludes anything that's only in the tab bar. */
+/** The grid tiles — admin-only filter is applied here so the /explore
+ *  page never has to know about it. */
 export const GRID_TILES = (isAdmin: boolean): HubTile[] =>
   HUB_TILES.filter((t) => !t.adminOnly || isAdmin);
 

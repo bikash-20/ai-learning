@@ -7,7 +7,6 @@ import { useSession } from '@/lib/useSession';
 import { BRAND } from '@/lib/brand';
 import { Navbar } from '@/components/ui/Navbar';
 import { MobileTopBar } from '@/components/ui/MobileTopBar';
-import { BottomTabBar } from '@/components/ui/BottomTabBar';
 import { GlassCard } from '@/components/ui/GlassCard';
 
 /**
@@ -24,9 +23,10 @@ import { GlassCard } from '@/components/ui/GlassCard';
  *    so cards and content stay focused; lighter on the hub/admin pages
  *    where the brand feel is the point.
  *
- * On mobile we mount a slim MobileTopBar (back + section title) and a
- * fixed BottomTabBar. The page content always gets `pb-[calc(theme(spacing.16)+env(safe-area-inset-bottom))]`
- * so the chat input / last list item never gets covered by the tab bar.
+ * On mobile we mount a slim MobileTopBar (back + section title +
+ * avatar menu). The bottom tab bar was deleted in the mobile-first
+ * pass — hub tiles on /explore are how users move between sections,
+ * and the Back button takes them back to wherever they came from.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { loading, user } = useSession();
@@ -97,10 +97,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       <Navbar />
       <MobileTopBar />
-      <div className="mx-auto w-full max-w-5xl px-3 pb-[calc(theme(spacing.16)+env(safe-area-inset-bottom)+0.5rem)] pt-2 sm:px-4 sm:pb-16 sm:pt-6">
+      <div className="mx-auto w-full max-w-5xl px-3 pb-24 pt-2 sm:px-4 sm:pb-16 sm:pt-6">
         {children}
       </div>
-      <BottomTabBar />
       <footer className="mx-auto w-full max-w-5xl px-4 pb-6 pt-4 text-center text-xs text-muted">
         <span>© {new Date().getFullYear()} {BRAND.appName}</span>
         <span aria-hidden="true"> · </span>

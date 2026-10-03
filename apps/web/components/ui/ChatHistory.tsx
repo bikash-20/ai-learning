@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from './Button';
-import { XIcon, ArrowRightIcon } from './icons';
+import { XIcon, ArrowRightIcon, HistoryIcon, PlusIcon } from './icons';
 
 /**
  * Conversation row used in the sidebar list. We keep the metadata lean:
@@ -26,6 +26,11 @@ export type ChatHistoryProps = {
   /** Mobile: when true, the sidebar overlays the page instead of sitting inline. */
   mobileOpen?: boolean;
   onCloseMobile?: () => void;
+  /** Desktop / tablet (≥ sm): when true, render a slim 64px icon rail
+   *  instead of the full panel. Toggling re-opens to the full panel. */
+  collapsed?: boolean;
+  /** Called when the user clicks the rail's toggle / new-chat buttons. */
+  onToggleCollapsed?: () => void;
 };
 
 const formatDate = (raw: string | number): string => {
@@ -57,6 +62,8 @@ export const ChatHistory = ({
   refreshKey,
   mobileOpen,
   onCloseMobile,
+  collapsed,
+  onToggleCollapsed,
 }: ChatHistoryProps) => {
   const [items, setItems] = useState<ConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,31 +137,71 @@ export const ChatHistory = ({
     }
   };
 
+  // The collapsed (rail) variant only applies on ≥ sm — on phones the
+  // sidebar is a slide-in drawer, not an inline rail.
+  const showRail = !!collapsed && !mobileOpen;
+
   return (
     <aside
       aria-label="Chat history"
-      className={`glass flex h-full w-full flex-col gap-3 rounded-glass p-3 sm:w-72 lg:w-80 ${mobileOpen ? 'fixed inset-0 z-40 sm:static' : 'hidden sm:flex'}`}
+      className={`chat-sidebar-shell glass flex h-full flex-col gap-3 rounded-glass p-3 ${mobileOpen ? 'fixed inset-0 z-40 w-full' : 'hidden sm:flex'} ${showRail ? 'sm:w-16 lg:w-16' : 'w-full sm:w-72 lg:w-80'}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-display text-sm uppercase tracking-display text-fg">History</h2>
-        <div className="flex items-center gap-1">
-          <Button type="button" size="sm" onClick={onNew}>
-            New chat
-          </Button>
-          {mobileOpen && onCloseMobile && (
+        {showRail ? (
+          <>
+            <span className="sr-only">Chat history (collapsed)</span>
             <button
               type="button"
-              onClick={onCloseMobile}
-              aria-label="Close history"
-              className="rounded-full p-1 text-muted hover:text-fg"
+              onClick={onToggleCollapsed}
+              aria-label="Open history"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-glass-border bg-glass-bg text-fg hover:border-accent"
             >
-              <XIcon size={18} />
+              <HistoryIcon size={18} />
             </button>
-          )}
-        </div>
+            <button
+              type="button"
+              onClick={onNew}
+              aria-label="New chat"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-glass-border bg-glass-bg text-fg hover:border-accent"
+            >
+              <PlusIcon size={16} decorative />
+            </button>
+          </>
+        ) : (
+          <>
+            <h2 className="font-display text-sm uppercase tracking-display text-fg">History</h2>
+            <div className="flex items-center gap-1">
+              {onToggleCollapsed && (
+                <button
+                  type="button"
+                  onClick={onToggleCollapsed}
+                  aria-label="Collapse history"
+                  className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-full border border-glass-border bg-glass-bg text-muted hover:text-fg"
+                  title="Collapse history"
+                >
+                  <HistoryIcon size={14} />
+                </button>
+              )}
+              <Button type="button" size="sm" onClick={onNew}>
+                New chat
+              </Button>
+              {mobileOpen && onCloseMobile && (
+                <button
+                  type="button"
+                  onClick={onCloseMobile}
+                  aria-label="Close history"
+                  className="rounded-full p-1 text-muted hover:text-fg"
+                >
+                  <XIcon size={18} />
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+      {!showRail && (
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
         {loading && (
           <div className="space-y-2" role="status" aria-live="polite">
             <div className="h-10 rounded-card bg-glass-bg/60" />
@@ -246,7 +293,8 @@ export const ChatHistory = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
     </aside>
   );
 };

@@ -64,11 +64,21 @@ export const ChatInput = ({
           placeholder={placeholder}
           rows={1}
           aria-label="Message"
-          className="glass min-h-[44px] w-full resize-none rounded-card border-glass-border px-4 py-2.5 pb-7 text-sm text-fg placeholder:text-muted focus-visible:outline-none disabled:opacity-60"
+          className="glass min-h-[44px] w-full resize-none rounded-card border-glass-border px-4 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:outline-none disabled:opacity-60"
         />
-        <span className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-muted">
-          {value.length}/{maxLength}
-        </span>
+        {/* Character counter only appears once the user is approaching
+            the limit (1800 / 4000), so it doesn't distract while typing
+            normal-length messages. */}
+        {value.length > 1800 && (
+          <span
+            className={`pointer-events-none absolute bottom-2 right-3 text-[10px] ${
+              value.length >= maxLength ? 'text-danger' : 'text-muted'
+            }`}
+            aria-live="polite"
+          >
+            {value.length}/{maxLength}
+          </span>
+        )}
       </div>
 
       {streaming ? (
