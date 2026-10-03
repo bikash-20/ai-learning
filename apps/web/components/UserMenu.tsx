@@ -1,15 +1,21 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSession } from '@/lib/useSession';
 
 /**
  * Compact user menu shown in the navbar once the session resolves.
- * Renders a "Sign in" link when the user is not logged in (no auto-redirect
- * from the navbar — that's the sign-in page's job), or the email + a dropdown
- * with "Sign out" when logged in.
+ *
+ * - Loading: placeholder pill, no menu.
+ * - Signed out: "Sign in" link to /sign-in.
+ * - Signed in: avatar / initials button → dropdown with email + "Sign out".
+ *   Sign out calls Better Auth signOut, clears local session state, and
+ *   navigates to /sign-in. There is NO session count cap: each sign-out
+ *   followed by sign-in works, on as many devices as the user wants.
  */
 export const UserMenu = () => {
+  const router = useRouter();
   const { loading, user, signOut } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -47,6 +53,13 @@ export const UserMenu = () => {
 
   const initials = (user.name || user.email).slice(0, 1).toUpperCase();
 
+  const handleSignOut = async () => {
+    setOpen(false);
+    await signOut();
+    // Hard navigation so the (app) guard re-runs and lands at /sign-in.
+    router.replace('/sign-in');
+  };
+
   return (
     <div ref={ref} className="relative ml-1">
       <button
@@ -82,13 +95,10 @@ export const UserMenu = () => {
           <button
             type="button"
             role="menuitem"
-            onClick={async () => {
-              setOpen(false);
-              await signOut();
-            }}
+            onClick={handleSignOut}
             className="block w-full rounded-md px-2 py-2 text-left text-fg hover:bg-glass-bg/40"
           >
-            Sign out
+            Logout
           </button>
         </div>
       )}

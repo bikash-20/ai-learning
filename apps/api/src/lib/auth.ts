@@ -13,6 +13,18 @@ export const auth = (env: Env) => {
     trustedOrigins: env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
     database: drizzleAdapter(db, { provider: 'sqlite' }),
     emailAndPassword: { enabled: false }, // magic-link only
+    // Cross-site (vercel.app → workers.dev) cookies need SameSite=None + Secure.
+    // `secure: true` is safe here because `BETTER_AUTH_URL` is https on the
+    // deployed worker; Better Auth already infers `secure` from the URL when
+    // possible, but we make it explicit so it survives any baseURL change.
+    advanced: {
+      defaultCookieAttributes: {
+        sameSite: 'none',
+        secure: true,
+        httpOnly: true,
+        path: '/',
+      },
+    },
     plugins: [
       magicLink({
         sendMagicLink: async ({ email, url }) => {
