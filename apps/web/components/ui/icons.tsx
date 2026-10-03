@@ -134,6 +134,61 @@ export const PlusIcon = ({
   </svg>
 );
 
+/** Magnifying glass — used in chat sidebar search. */
+export const SearchIcon = ({
+  size = 16,
+  className,
+  decorative = true,
+  title,
+}: IconProps) => (
+  <svg {...baseProps(size, className, decorative, title)}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="M20 20l-3.5-3.5" />
+  </svg>
+);
+
+/** Horizontal three-dot menu — used in the chat row overflow menu. */
+export const MoreIcon = ({
+  size = 16,
+  className,
+  decorative = true,
+  title,
+}: IconProps) => (
+  <svg {...baseProps(size, className, decorative, title)}>
+    <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+/** Trash / delete — used in chat row overflow menu. */
+export const TrashIcon = ({
+  size = 16,
+  className,
+  decorative = true,
+  title,
+}: IconProps) => (
+  <svg {...baseProps(size, className, decorative, title)}>
+    <path d="M4 7h16" />
+    <path d="M9 7V4h6v3" />
+    <path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" />
+    <path d="M10 11v6M14 11v6" />
+  </svg>
+);
+
+/** Pencil — used in chat row overflow menu (rename). */
+export const PencilIcon = ({
+  size = 16,
+  className,
+  decorative = true,
+  title,
+}: IconProps) => (
+  <svg {...baseProps(size, className, decorative, title)}>
+    <path d="M4 20l4-1 11-11a2.83 2.83 0 0 0-4-4L4 15z" />
+    <path d="M13 6l4 4" />
+  </svg>
+);
+
 /* ── Feature / tile icons ──────────────────────────────────────── */
 
 export const FlashcardsIcon = ({ size = 20, className, decorative = true, title }: IconProps) => (

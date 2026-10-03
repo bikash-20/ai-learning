@@ -595,17 +595,6 @@ export default function ChatPage() {
                 <ChatBubbleIcon size={16} decorative />
                 History
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="hidden sm:inline-flex"
-                onClick={() => setSidebarOpen((v) => !v)}
-                aria-label={sidebarOpen ? 'Collapse history' : 'Open history'}
-                title={sidebarOpen ? 'Collapse history' : 'Open history'}
-              >
-                {sidebarOpen ? '«' : '»'}
-              </Button>
             </div>
           }
         />
