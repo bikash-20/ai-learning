@@ -75,7 +75,7 @@ export default function QuizPage() {
   }
 
   if (s.kind === 'playing') {
-    const it = s.items[s.idx];
+    const it = s.items[s.idx]!;
     const picked = s.picks[s.idx];
     return (
       <main className="mx-auto max-w-2xl px-6 py-12">

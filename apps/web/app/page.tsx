@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 export default function Home() {
   const tiles = [
+    { href: '/sign-in', title: 'Sign in', desc: 'Email magic-link, then access everything.' },
     { href: '/chat', title: 'Chat with a tutor', desc: 'Ask anything about English grammar, IELTS, vocabulary.' },
     { href: '/quiz', title: 'Take a quiz', desc: 'AI-generated questions on any topic, any CEFR level.' },
     { href: '/vocab', title: 'Browse vocabulary', desc: 'Authored word lists with examples and level tags.' },
