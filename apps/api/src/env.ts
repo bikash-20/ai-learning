@@ -28,6 +28,10 @@ export interface Env {
   WORKERS_AI_MODELS?: string;
   /** Single-model back-compat: if WORKERS_AI_MODELS is empty, this is used. */
   WORKERS_AI_MODEL?: string; // override for tests
+
+  /** DEV-ONLY: enables POST /api/_test/sign-in for live smoke tests.
+   *  Set to '1' in test environments; never in production. */
+  ALLOW_TEST_AUTH?: string;
 }
 
 export const HAIKU_MODEL = '@cf/meta/llama-3.3-70b-instruct';

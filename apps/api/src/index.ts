@@ -12,6 +12,7 @@ import { meRoute } from './routes/me';
 import { flashcardsRoute } from './routes/flashcards';
 import { healthRoute } from './routes/health';
 import { adminRoute } from './routes/admin';
+import { testRoute } from './routes/_test';
 
 export { RateLimiter } from './durable/RateLimiter';
 export { ChatSession } from './durable/ChatSession';
@@ -19,6 +20,7 @@ export { ChatSession } from './durable/ChatSession';
 const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
   .use('*', cors)
   .get('/api/_internal/healthz', (c) => c.json({ ok: true }))
+  .get('/api/_internal/hello-test-xyz123', (c) => c.json({ ok: true, marker: 'hello-test-xyz123' }))
   .get('/api/_internal/readyz', async (c) => {
     try {
       await c.env.DB.prepare('SELECT 1').first();
@@ -28,6 +30,7 @@ const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
     }
   })
   .route('/', healthRoute)
+  .route('/', testRoute)
   .route('/', authRoute)
   .route('/', chatRoute)
   .route('/', chatHistoryRoute)
@@ -37,10 +40,11 @@ const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
   .route('/', flashcardsRoute)
   .route('/', vocabRoute)
   .route('/', adminRoute)
+  .route('/', testRoute)
   .notFound((c) => c.json({ code: 'NOT_FOUND', message: 'No route' }, 404))
   .onError((e, c) => handleError(c, e));
 
 export default {
   fetch: app.fetch,
   // DO exports are wired via wrangler.toml `new_sqlite_classes`
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<Env>;// Force rebuild Sun Oct  4 02:05:22 +06 2026
