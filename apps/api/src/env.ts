@@ -20,7 +20,10 @@ export interface Env {
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   OPENROUTER_API_KEY?: string;
-  OPENROUTER_MODEL?: string; // default free model
+  /** Comma-separated ordered list of OpenRouter models for the cascade. */
+  OPENROUTER_MODELS?: string;
+  /** Single-model back-compat: if OPENROUTER_MODELS is empty, this is used. */
+  OPENROUTER_MODEL?: string;
   WORKERS_AI_MODEL?: string; // override for tests
 }
 

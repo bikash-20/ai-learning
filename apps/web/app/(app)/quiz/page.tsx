@@ -16,14 +16,65 @@ type State =
   | { kind: 'playing'; quizId: string; items: QuizItem[]; idx: number; picks: Record<number, number> }
   | { kind: 'submitted'; score: number; total: number; explanations: Record<string, string> };
 
+type ErrInfo = {
+  title: string;
+  detail: string;
+  technical?: string;
+  /** When true we render a Retry button that re-runs the last action. */
+  retryable: boolean;
+};
+
 const LEVELS: Level[] = ['A2', 'B1', 'B2', 'C1'];
+
+const friendlyFromResponse = async (res: Response): Promise<ErrInfo> => {
+  // Try to use the server's { code, message } envelope — never raw status code.
+  let serverMsg: string | undefined;
+  let serverCode: string | undefined;
+  try {
+    const j = (await res.clone().json()) as { code?: string; message?: string };
+    serverMsg = typeof j.message === 'string' ? j.message : undefined;
+    serverCode = typeof j.code === 'string' ? j.code : undefined;
+  } catch {
+    /* body wasn't JSON — fall through */
+  }
+  if (res.status === 401) {
+    return { title: 'Please sign in again', detail: 'Your session expired.', retryable: false };
+  }
+  if (res.status === 429) {
+    return {
+      title: 'Too many requests',
+      detail: 'Please wait a moment, then try again.',
+      retryable: true,
+    };
+  }
+  if (res.status >= 500 || serverCode === 'UPSTREAM_UNAVAILABLE') {
+    return {
+      title: 'All AI models are busy',
+      detail: serverMsg ?? "We couldn't reach the tutor right now. Please try again.",
+      ...(process.env.NODE_ENV !== 'production' && serverCode ? { technical: serverCode } : {}),
+      retryable: true,
+    };
+  }
+  if (serverCode === 'AI_INVALID_OUTPUT' || serverMsg) {
+    return {
+      title: 'We couldn\u2019t generate a quiz',
+      detail: serverMsg ?? 'Please try again with a different topic.',
+      retryable: true,
+    };
+  }
+  return {
+    title: 'Something went wrong',
+    detail: `Request failed (${res.status}). Please try again.`,
+    retryable: true,
+  };
+};
 
 export default function QuizPage() {
   const [topic, setTopic] = useState('IELTS grammar');
   const [level, setLevel] = useState<Level>('B2');
   const [n, setN] = useState(5);
   const [s, setState] = useState<State>({ kind: 'idle' });
-  const [err, setErr] = useState<string | null>(null);
+  const [err, setErr] = useState<ErrInfo | null>(null);
 
   const start = async () => {
     setErr(null);
@@ -35,11 +86,21 @@ export default function QuizPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic, level, n }),
       });
-      if (!res.ok) throw new Error(`API ${res.status}`);
+      if (!res.ok) {
+        setErr(await friendlyFromResponse(res));
+        setState({ kind: 'idle' });
+        return;
+      }
       const j = (await res.json()) as { quizId: string; items: QuizItem[] };
       setState({ kind: 'playing', quizId: j.quizId, items: j.items, idx: 0, picks: {} });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to generate quiz');
+      const msg = e instanceof Error ? e.message : 'Network error';
+      const isNetwork = /fetch|network|failed to fetch/i.test(msg) || (typeof navigator !== 'undefined' && !navigator.onLine);
+      setErr(
+        isNetwork
+          ? { title: 'No connection', detail: 'Check your connection and try again.', retryable: true }
+          : { title: 'Something went wrong', detail: msg, retryable: true },
+      );
       setState({ kind: 'idle' });
     }
   };
@@ -58,7 +119,10 @@ export default function QuizPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quizId: s.quizId, answers }),
       });
-      if (!res.ok) throw new Error(`API ${res.status}`);
+      if (!res.ok) {
+        setErr(await friendlyFromResponse(res));
+        return;
+      }
       const j = (await res.json()) as {
         score: number;
         total: number;
@@ -68,9 +132,30 @@ export default function QuizPage() {
       for (const r of j.results) if (r.aiExplanation) explanations[r.itemId] = r.aiExplanation;
       setState({ kind: 'submitted', score: j.score, total: j.total, explanations });
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to submit');
+      const msg = e instanceof Error ? e.message : 'Network error';
+      const isNetwork = /fetch|network|failed to fetch/i.test(msg) || (typeof navigator !== 'undefined' && !navigator.onLine);
+      setErr(
+        isNetwork
+          ? { title: 'No connection', detail: 'Check your connection and try again.', retryable: true }
+          : { title: 'Something went wrong', detail: msg, retryable: true },
+      );
     }
   };
+
+  const errorBlock = err && (
+    <ErrorState title={err.title} detail={err.detail}>
+      {err.technical && process.env.NODE_ENV !== 'production' && (
+        <div className="mt-1 text-xs text-muted/80">dev: {err.technical}</div>
+      )}
+      {err.retryable && (
+        <div className="mt-3">
+          <Button type="button" size="sm" variant="ghost" onClick={s.kind === 'playing' ? submit : start}>
+            Retry
+          </Button>
+        </div>
+      )}
+    </ErrorState>
+  );
 
   if (s.kind === 'idle' || s.kind === 'generating') {
     return (
@@ -106,7 +191,7 @@ export default function QuizPage() {
           <Button onClick={start} disabled={s.kind === 'generating'} className="w-full">
             {s.kind === 'generating' ? 'Generating…' : 'Generate quiz'}
           </Button>
-          {err && <ErrorState detail={err} />}
+          {errorBlock}
         </GlassCard>
       </main>
     );
@@ -148,7 +233,7 @@ export default function QuizPage() {
               </Button>
             )}
           </div>
-          {err && <div className="mt-4"><ErrorState detail={err} /></div>}
+          {err && <div className="mt-4">{errorBlock}</div>}
         </GlassCard>
       </main>
     );
@@ -168,7 +253,8 @@ export default function QuizPage() {
             </div>
           ))
         )}
-        <Button variant="ghost" onClick={() => setState({ kind: 'idle' })}>New quiz</Button>
+        <Button variant="ghost" onClick={() => { setErr(null); setState({ kind: 'idle' }); }}>New quiz</Button>
+        {errorBlock}
       </GlassCard>
     </main>
   );

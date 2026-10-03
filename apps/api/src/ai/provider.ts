@@ -1,7 +1,14 @@
 import type { Env } from '../env';
-import { HAIKU_MODEL, DEFAULT_OPENROUTER_MODEL } from '../env';
+import { HAIKU_MODEL } from '../env';
 import { trackAI } from '../lib/analytics';
 import type { ChatMessage } from '@ai-learning/shared';
+import {
+  openRouterCascade,
+  openRouterCascadeJson,
+  AllUpstreamError,
+  UpstreamAuthError,
+  JsonCascadeError,
+} from './cascade';
 
 export type ChatInput = {
   messages: ChatMessage[];
@@ -25,6 +32,9 @@ const messagesToOpenAI = (msgs: ChatMessage[], system?: string) => [
   ...msgs.map((m) => ({ role: m.role, content: m.content })),
 ];
 
+const stripJsonFence = (s: string) =>
+  s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+
 export const workersChat = async (env: Env, input: ChatInput): Promise<ChatOutput> => {
   const model = env.WORKERS_AI_MODEL ?? HAIKU_MODEL;
   const res = await env.AI.run(model as never, {
@@ -32,36 +42,18 @@ export const workersChat = async (env: Env, input: ChatInput): Promise<ChatOutpu
     max_tokens: input.maxTokens ?? 1024,
     temperature: input.temperature ?? 0.4,
   } as never);
-  // Workers AI returns { response: string, usage?: { tokens?: number } }
   const r = res as { response?: string; usage?: { tokens?: number } };
   const text = r.response ?? '';
   return { text, provider: 'workers', model, tokens: r.usage?.tokens ?? 0 };
 };
 
-export const openRouterChat = async (env: Env, input: ChatInput): Promise<ChatOutput> => {
-  if (!env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY missing');
-  const model = env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL;
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://ai-learning.workers.dev',
-      'X-Title': 'ai-learning',
-    },
-    body: JSON.stringify({
-      model,
-      messages: messagesToOpenAI(input.messages, input.system),
-      max_tokens: input.maxTokens ?? 1024,
-      temperature: input.temperature ?? 0.4,
-    }),
-  });
-  if (!res.ok) throw new Error(`openrouter ${res.status}`);
-  const j = (await res.json()) as { choices: { message: { content: string } }[]; usage?: { total_tokens: number } };
-  return { text: j.choices[0]?.message?.content ?? '', provider: 'openrouter', model, tokens: j.usage?.total_tokens ?? 0 };
-};
-
-// Main public entry. One path for every caller. Fallback on error OR on hedge for "authoritative" callers.
+/**
+ * Main public entry for free-form chat. Tries Workers AI first; falls back to
+ * the OpenRouter cascade on error or low-confidence output (when authoritative).
+ *
+ * Re-throws `UpstreamAuthError` and `AllUpstreamError` from the cascade so the
+ * route layer can surface a friendly message + CORS-stamped 502/503.
+ */
 export const chat = async (
   env: Env,
   route: string,
@@ -76,23 +68,71 @@ export const chat = async (
     return out;
   } catch (e) {
     console.warn('workers_ai_fallback', { route, err: String(e) });
-    const out = await openRouterChat(env, input);
+    const fallback = await openRouterCascade(env, { ...input, route });
+    const out: ChatOutput = { text: fallback.text, provider: 'openrouter', model: fallback.model, tokens: fallback.tokens };
     trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 1 });
     return out;
   }
 };
 
-// Strict JSON chat. Retries once with OpenRouter on parse failure.
-export const chatJson = async <T>(env: Env, route: string, input: ChatInput, parse: (raw: unknown) => T): Promise<{ parsed: T; out: ChatOutput }> => {
-  const out = await chat(env, route, { ...input, temperature: input.temperature ?? 0.2 }, { authoritative: true });
-  const tryParse = (txt: string) => {
-    const cleaned = txt.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
-    return parse(JSON.parse(cleaned));
+/**
+ * Strict JSON chat. Same model cascade as `chat`, but additionally treats
+ * malformed JSON as a fall-through reason so the next model is tried instead
+ * of returning 500 to the user.
+ *
+ * Strategy:
+ *   1. Try Workers AI. If parseable, return.
+ *   2. Try `openRouterCascadeJson` — this walks the full model list, retrying
+ *      each model once at temperature 0 on parse failure, then advancing.
+ *   3. Throws `JsonCascadeError` (→ AI_INVALID_OUTPUT 502 with friendly text)
+ *      if transport succeeded for at least one model but no model parsed.
+ *      Throws `UpstreamAuthError` (→ 503) and `AllUpstreamError` (→ 502) on
+ *      pure transport failure.
+ */
+export const chatJson = async <T>(
+  env: Env,
+  route: string,
+  input: ChatInput,
+  parse: (raw: unknown) => T,
+): Promise<{ parsed: T; out: ChatOutput }> => {
+  const tryParse = (txt: string): T | null => {
+    try {
+      return parse(JSON.parse(stripJsonFence(txt)));
+    } catch {
+      return null;
+    }
   };
+
+  // 1. Try Workers AI first (low latency, free tier).
   try {
-    return { parsed: tryParse(out.text), out };
-  } catch {
-    const retry = await openRouterChat(env, { ...input, temperature: 0.2 });
-    return { parsed: tryParse(retry.text), out: retry };
+    const primary = await chat(
+      env,
+      route,
+      { ...input, temperature: input.temperature ?? 0.2 },
+      { authoritative: true },
+    );
+    const parsed = tryParse(primary.text);
+    if (parsed !== null) return { parsed, out: primary };
+    console.warn('chatJson_workers_unparseable', { route, len: primary.text.length });
+  } catch (e) {
+    if (e instanceof UpstreamAuthError) throw e;
+    if (e instanceof AllUpstreamError) throw e;
+    console.warn('chatJson_workers_fallthrough', { route, err: String(e) });
   }
+
+  // 2. Walk the cascade — parse failures fall through to the next model.
+  const { parsed, result } = await openRouterCascadeJson(
+    env,
+    { ...input, temperature: input.temperature ?? 0.4, route },
+    parse,
+  );
+  const out: ChatOutput = {
+    text: result.text,
+    provider: 'openrouter',
+    model: result.model,
+    tokens: result.tokens,
+  };
+  return { parsed, out };
 };
+
+export { AllUpstreamError, UpstreamAuthError, JsonCascadeError };

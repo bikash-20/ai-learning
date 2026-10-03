@@ -1,14 +1,41 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Env } from '../env';
 import { requireAuth } from '../lib/requireAuth';
 import { rateLimit } from '../lib/ratelimit';
 import { handleError } from '../lib/errors';
 import { chatJson } from '../ai/provider';
+import { AllUpstreamError, UpstreamAuthError, JsonCascadeError } from '../ai/cascade';
 import { QUIZ_GEN_PROMPT, EXPLAIN_PROMPT } from '../ai/prompt';
 import { QuizFromTopicRequest, QuizItemsJson, QuizAttemptRequest, ErrorCode } from '@ai-learning/shared';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../db/schema';
 import { eq } from 'drizzle-orm';
+
+type Ctx = Context<{ Bindings: Env; Variables: { userId: string } }>;
+
+/**
+ * Map every cascade-level failure to a friendly, CORS-stamped JSON response.
+ * Returns `null` when the failure isn't cascade-related (let `handleError` deal
+ * with it).
+ */
+const cascadeError = (c: Ctx, e: unknown): Response | null => {
+  if (e instanceof UpstreamAuthError) {
+    return c.json({ code: ErrorCode.UpstreamAuth, message: 'AI provider authentication failed.' }, 502);
+  }
+  if (e instanceof JsonCascadeError) {
+    return c.json(
+      { code: ErrorCode.AIInvalid, message: "We couldn't generate a quiz right now — please try again." },
+      502,
+    );
+  }
+  if (e instanceof AllUpstreamError) {
+    return c.json(
+      { code: ErrorCode.UpstreamUnavailable, message: e.message, details: { cause: e.cause } },
+      503,
+    );
+  }
+  return null;
+};
 
 export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
   .post('/api/quiz/from-topic', requireAuth, async (c) => {
@@ -24,7 +51,12 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
         maxTokens: 1800,
       }, QuizItemsJson.parse);
       const items = parsed.items;
-      if (items.length === 0) return c.json({ code: ErrorCode.AIInvalid, message: 'No items generated' }, 502);
+      if (items.length === 0) {
+        return c.json(
+          { code: ErrorCode.AIInvalid, message: "We couldn't generate a quiz right now — please try again." },
+          502,
+        );
+      }
 
       const quizId = crypto.randomUUID();
       const db = drizzle(c.env.DB, { schema });
@@ -49,6 +81,8 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
       const itemsWithId = items.map((it, i) => ({ id: itemIds[i]!, ...it }));
       return c.json({ quizId, items: itemsWithId, provider: out.provider, model: out.model });
     } catch (e) {
+      const friendly = cascadeError(c, e);
+      if (friendly) return friendly;
       return handleError(c, e);
     }
   })
@@ -75,12 +109,17 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
         let aiExplanation: string | undefined;
         if (!correct) {
           const correctText = it.options[it.answerIdx] ?? '';
+          // Explain path uses the same cascade (parse errors are tolerated —
+          // we just fall back to the static explanation). Never throw 5xx here.
           const exp = await chatJson(c.env, 'explain', {
             system: 'You are an English tutor. Output only the explanation text, no preamble.',
             messages: [{ role: 'user', content: EXPLAIN_PROMPT(it.prompt, correctText) }],
             maxTokens: 200,
             temperature: 0.3,
-          }, (raw) => raw as string).catch(() => null);
+          }, (raw) => raw as string).catch((e) => {
+            console.warn('explain_fallback', { route: 'explain', err: String(e) });
+            return null;
+          });
           aiExplanation = exp?.parsed ? String(exp.parsed).slice(0, 600) : it.explanation;
         }
         await db.insert(schema.attemptItem).values({
@@ -97,6 +136,8 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
       await db.update(schema.quizAttempt).set({ score, finishedAt: new Date() }).where(eq(schema.quizAttempt.id, attemptId));
       return c.json({ attemptId, score, total: dbItems.length, results });
     } catch (e) {
+      const friendly = cascadeError(c, e);
+      if (friendly) return friendly;
       return handleError(c, e);
     }
   });

@@ -6,6 +6,7 @@ import { authRoute } from './routes/auth';
 import { chatRoute } from './routes/chat';
 import { quizRoute } from './routes/quiz';
 import { vocabRoute } from './routes/vocab';
+import { healthRoute } from './routes/health';
 
 export { RateLimiter } from './durable/RateLimiter';
 export { ChatSession } from './durable/ChatSession';
@@ -21,6 +22,7 @@ const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
       return c.json({ ok: false, error: String(e) }, 503);
     }
   })
+  .route('/', healthRoute)
   .route('/', authRoute)
   .route('/', chatRoute)
   .route('/', quizRoute)

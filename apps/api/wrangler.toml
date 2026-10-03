@@ -38,3 +38,6 @@ dataset = "ai-learning-analytics"
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://web-nine-rho-1j664llz3j.vercel.app,http://localhost:3000"
+# OpenRouter cascade — tried in order, first success wins. Curated from
+# the currently-available :free models at deploy time.
+OPENROUTER_MODELS = "qwen/qwen3.8-27b:free,nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3-ultra-550b-a55b:free,liquid/lfm-2.5-2.6b:free,apodex/apodex-1.1-mini:free"
