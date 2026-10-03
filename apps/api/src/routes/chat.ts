@@ -30,6 +30,33 @@ const finalize = (c: { env: Env; req: { header: (k: string) => string | undefine
 };
 
 /**
+ * Structured error envelope for the SSE `error` event. Routes re-use the
+ * same `ErrorCode` constants the JSON routes use so the client can map
+ * server-acknowledged failures to a friendly category.
+ */
+type StreamError = {
+  code: typeof ErrorCode[keyof typeof ErrorCode];
+  message: string;
+  details?: unknown;
+};
+const streamError = (e: unknown): StreamError => {
+  if (e instanceof UpstreamAuthError) {
+    return { code: ErrorCode.UpstreamAuth, message: 'AI provider authentication failed.' };
+  }
+  if (e instanceof AllUpstreamError) {
+    return {
+      code: ErrorCode.UpstreamUnavailable,
+      message: e.message || 'AI service is temporarily unavailable.',
+      details: { cause: e.cause },
+    };
+  }
+  return {
+    code: ErrorCode.UpstreamUnavailable,
+    message: 'AI service is temporarily unavailable.',
+  };
+};
+
+/**
  * Try to stream tokens from the given Workers AI model. The controller
  * receives SSE `token` events. Returns the assembled text + latency, or
  * a structured error if the model never produced a token within the
@@ -129,6 +156,12 @@ const tryStream = async (
  * Shared streaming pipeline. Builds a ReadableStream that emits token,
  * `done`, or `error` events. All the AI work + DB persistence + analytics
  * runs in the same async chain so the controller ordering is deterministic.
+ *
+ * Failure contract: if the stream ends without a `done` event, the final
+ * frame MUST be an `error` SSE event with the real `ErrorCode`. The client
+ * uses that to route to the right friendly category ("busy" vs "auth"
+ * vs "rate_limited") instead of falling back to the generic "network"
+ * regex match.
  */
 const buildChatStream = (
   c: Context<{ Bindings: Env; Variables: { userId: string } }>,
@@ -151,7 +184,7 @@ const buildChatStream = (
         cached: boolean;
         firstTokenAtMs: number;
       } | null = null;
-      let streamError: { code: string; message: string; details?: unknown } | null = null;
+      let streamErr: StreamError | null = null;
 
       try {
         // 1) Try streaming from Workers AI primary model.
@@ -166,8 +199,11 @@ const buildChatStream = (
             firstTokenAtMs: streamAttempt.firstTokenAtMs,
           };
         } else {
-          console.warn('workers_stream_fallback', {
-            route: 'chat', model: primaryModel, reason: streamAttempt.reason,
+          console.warn('chat_stream_diagnostic', {
+            stage: 'tryStream',
+            model: primaryModel,
+            reason: streamAttempt.reason,
+            latencyMs: Date.now() - start,
           });
 
           // 2) Fallback — non-streaming myChat (cache → workersCascade →
@@ -189,17 +225,14 @@ const buildChatStream = (
             };
             controller.enqueue(sse('token', { text: out.text }));
           } catch (fbErr) {
-            if (fbErr instanceof UpstreamAuthError) {
-              streamError = { code: ErrorCode.UpstreamAuth, message: 'AI provider authentication failed.' };
-            } else if (fbErr instanceof AllUpstreamError) {
-              streamError = {
-                code: ErrorCode.UpstreamUnavailable,
-                message: fbErr.message,
-                details: { cause: fbErr.cause },
-              };
-            } else {
-              streamError = { code: ErrorCode.UpstreamUnavailable, message: 'AI service is temporarily unavailable.' };
-            }
+            streamErr = streamError(fbErr);
+            console.warn('chat_stream_diagnostic', {
+              stage: 'myChat_fallback',
+              model: primaryModel,
+              reason: streamErr.message,
+              code: streamErr.code,
+              latencyMs: Date.now() - start,
+            });
           }
         }
 
@@ -236,11 +269,33 @@ const buildChatStream = (
             cached: outcome.cached,
             firstTokenAtMs: outcome.firstTokenAtMs,
           }));
-        } else if (streamError) {
-          controller.enqueue(sse('error', streamError));
+        } else if (streamErr) {
+          // Always emit the structured `error` event so the client can map
+          // it to the right friendly category — no more "No connection"
+          // for upstream failures.
+          controller.enqueue(sse('error', streamErr));
+        } else {
+          // Defensive: nothing succeeded and no structured error was set.
+          // Should never happen, but if it does, surface an upstream error
+          // rather than closing silently (which the client would treat as
+          // a network drop).
+          controller.enqueue(sse('error', {
+            code: ErrorCode.UpstreamUnavailable,
+            message: 'AI service did not respond.',
+          } satisfies StreamError));
         }
       } catch (e) {
-        controller.enqueue(sse('error', { code: ErrorCode.UpstreamUnavailable, message: String(e) }));
+        console.warn('chat_stream_diagnostic', {
+          stage: 'unhandled_exception',
+          err: String(e).slice(0, 200),
+          latencyMs: Date.now() - start,
+        });
+        try {
+          controller.enqueue(sse('error', {
+            code: ErrorCode.Internal,
+            message: 'Internal server error.',
+          } satisfies StreamError));
+        } catch { /* controller may already be closed */ }
       } finally {
         try { controller.close(); } catch { /* already closed */ }
         if (idempKey) await idemStore(c, idempKey, 200, JSON.stringify({ ok: true }));
@@ -279,6 +334,7 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
 
     const system = SYSTEM_TUTOR('B2');
     const start = Date.now();
+    const primaryModel = resolveWorkersAiModels(c.env)[0]!;
 
     const stream = buildChatStream(c, db, userId, body, system, idempKey, start);
 
@@ -288,7 +344,11 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
         'Cache-Control': 'no-cache, no-transform',
         Connection: 'keep-alive',
         'X-Accel-Buffering': 'no',
-        'X-Model-Used': '', // Authoritative value comes from the `done` event.
+        // Stamp the primary model up-front so a stalled stream (or a
+        // connection that drops before any SSE frame arrives) still tells
+        // the client which model was tried. The authoritative value comes
+        // from the `done` event once a real answer is produced.
+        'X-Model-Used': primaryModel,
       },
     });
     return finalize(c, res);

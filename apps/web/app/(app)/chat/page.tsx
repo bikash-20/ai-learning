@@ -18,16 +18,24 @@ type Msg = {
   cached?: boolean | undefined;
 };
 
-type ChatErrorCategory = 'offline' | 'network' | 'auth' | 'rate_limited' | 'busy' | 'unknown';
+type ChatErrorCategory =
+  | 'offline'        // window.navigator.onLine === false at send-time
+  | 'network'        // the SSE stream never produced a single byte (genuine network drop)
+  | 'auth'           // 401 or UPSTREAM_AUTH — session expired
+  | 'rate_limited'   // 429 or RATE_LIMITED — quota exhausted
+  | 'busy'           // UPSTREAM_UNAVAILABLE / 502 / 503 — AI cascade failed
+  | 'unknown';       // catch-all
 
 type ChatError = {
   category: ChatErrorCategory;
   technical?: string | undefined;
   /** Optional Retry-After seconds from the server, if it sent one. */
   retryAfter?: number | undefined;
+  /** Optional upstream-supplied friendly message (e.g. cascade error cause). */
+  upstreamMessage?: string | undefined;
 };
 
-const friendlyError = (category: ChatErrorCategory): string => {
+const friendlyError = (category: ChatErrorCategory, upstreamMessage?: string): string => {
   switch (category) {
     case 'offline':
       return "You're offline. Reconnect and try again.";
@@ -38,7 +46,9 @@ const friendlyError = (category: ChatErrorCategory): string => {
     case 'rate_limited':
       return "You're sending messages too quickly. Wait a moment, then retry.";
     case 'busy':
-      return 'All AI models are busy. Please retry in a moment.';
+      return upstreamMessage
+        ? `The tutor is busy: ${upstreamMessage}`
+        : 'The tutor is busy right now. Please retry in a moment.';
     default:
       return "We couldn't get a reply. Please try again.";
   }
@@ -50,7 +60,7 @@ const errorTitle = (category: ChatErrorCategory): string => {
     case 'network': return 'No connection';
     case 'auth': return 'Please sign in again';
     case 'rate_limited': return 'Slow down a moment';
-    case 'busy': return 'All AI models are busy';
+    case 'busy': return 'The tutor is busy';
     default: return "We couldn't get a reply";
   }
 };
@@ -178,6 +188,13 @@ export default function ChatPage() {
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // Track whether we ever received any bytes from the SSE stream. If
+    // the stream errors out before a single byte arrives, this is a
+    // genuine network failure (not an upstream AI failure) and we should
+    // show "No connection" rather than "The tutor is busy". Hoisted to
+    // the function scope so the catch block can read it.
+    let bytesReceived = 0;
+
     // Detect offline at send-time so the user sees the right error
     // immediately, rather than waiting for the fetch to fail.
     if (typeof window !== 'undefined' && !window.navigator.onLine) {
@@ -208,14 +225,22 @@ export default function ChatPage() {
         const text = await res.text().catch(() => '');
         let category: ChatErrorCategory = 'unknown';
         let retryAfter: number | undefined;
+        let upstreamMessage: string | undefined;
         if (res.status === 401) category = 'auth';
         else if (res.status === 429) {
           category = 'rate_limited';
           const ra = res.headers.get('Retry-After');
           if (ra) retryAfter = Number(ra);
         }
-        else if (res.status === 502 || res.status === 503) category = 'busy';
-        throw Object.assign(new Error(text || `API ${res.status}`), { _category: category, _retryAfter: retryAfter });
+        else if (res.status === 502 || res.status === 503) {
+          category = 'busy';
+          // Try to read the JSON body for a friendly upstream message.
+          try {
+            const j = JSON.parse(text) as { message?: unknown };
+            if (typeof j.message === 'string') upstreamMessage = j.message;
+          } catch { /* not JSON, ignore */ }
+        }
+        throw Object.assign(new Error(text || `API ${res.status}`), { _category: category, _retryAfter: retryAfter, _upstreamMessage: upstreamMessage });
       }
 
       const reader = res.body.getReader();
@@ -234,13 +259,42 @@ export default function ChatPage() {
           modelFromHeader = ev.model;
           cachedFromStream = ev.cached === true;
         } else if (ev.kind === 'error') {
-          throw Object.assign(new Error(ev.message), { _category: ev.code === 'UPSTREAM_AUTH' ? 'auth' : 'busy' });
+          // Map server-side `ErrorCode` to a friendly client category.
+          // The server's job is to ALWAYS emit one of these when the
+          // stream ends unsuccessfully — this is the only signal we trust
+          // for "busy" vs "auth" vs "rate_limited".
+          let category: ChatErrorCategory = 'unknown';
+          switch (ev.code) {
+            case 'UPSTREAM_AUTH':
+              category = 'auth';
+              break;
+            case 'RATE_LIMITED':
+              category = 'rate_limited';
+              break;
+            case 'UPSTREAM_UNAVAILABLE':
+            case 'AI_INVALID_OUTPUT':
+              category = 'busy';
+              break;
+            case 'UNAUTHORIZED':
+              category = 'auth';
+              break;
+            case 'INTERNAL':
+              category = 'unknown';
+              break;
+            default:
+              category = 'busy';
+          }
+          throw Object.assign(new Error(ev.message), {
+            _category: category,
+            _upstreamMessage: ev.message,
+          });
         }
       };
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        bytesReceived += value?.byteLength ?? 0;
         feedSseParser(parser, dec.decode(value, { stream: true }), flushEvent);
         setMessages((cur) => {
           const c2 = [...cur];
@@ -272,9 +326,28 @@ export default function ChatPage() {
         return c2;
       });
     } catch (e) {
-      const cat = (e as Error & { _category?: ChatErrorCategory })._category ?? categorize(e);
-      const retryAfter = (e as Error & { _retryAfter?: number })._retryAfter;
-      setChatError({ category: cat, technical: e instanceof Error ? e.message : String(e), retryAfter });
+      const caught = e as Error & {
+        _category?: ChatErrorCategory;
+        _retryAfter?: number;
+        _upstreamMessage?: string;
+      };
+      // If the SSE stream never produced a single byte before the
+      // failure, treat it as a real network drop (the server never got a
+      // chance to emit an `error` event). Otherwise trust whatever
+      // category the error carried.
+      const taggedCat = caught._category;
+      const cat: ChatErrorCategory =
+        bytesReceived === 0 && !taggedCat
+          ? 'network'
+          : taggedCat ?? categorize(e);
+      const retryAfter = caught._retryAfter;
+      const upstreamMessage = caught._upstreamMessage;
+      setChatError({
+        category: cat,
+        technical: caught.message ?? String(e),
+        ...(retryAfter !== undefined ? { retryAfter } : {}),
+        ...(upstreamMessage ? { upstreamMessage } : {}),
+      });
 
       // 401 → redirect to sign-in once.
       if (cat === 'auth') {
@@ -295,12 +368,17 @@ export default function ChatPage() {
   };
 
   const categorize = (err: unknown): ChatErrorCategory => {
+    // This is the LAST-RESORT fallback. In practice, the server should
+    // always emit a structured `error` SSE event for upstream failures,
+    // and the response status should already carry auth / rate / busy
+    // semantics. We only get here when the stream dies before any byte
+    // arrives AND the catch was a generic network failure.
     if (typeof window !== 'undefined' && !window.navigator.onLine) return 'offline';
     const msg = err instanceof Error ? err.message : String(err);
-    if (/fetch|network|failed to fetch/i.test(msg)) return 'network';
     if (/401|UNAUTHORIZED|UPSTREAM_AUTH/i.test(msg)) return 'auth';
     if (/429|RATE_LIMITED/i.test(msg)) return 'rate_limited';
     if (/UPSTREAM_UNAVAILABLE|UPSTREAM_AUTH|502|503/i.test(msg)) return 'busy';
+    if (/fetch|network|failed to fetch/i.test(msg)) return 'network';
     return 'unknown';
   };
 
@@ -345,7 +423,7 @@ export default function ChatPage() {
               <div className="font-display text-lg uppercase tracking-display text-fg">
                 {errorTitle(chatError.category)}
               </div>
-              <p className="mt-1 text-sm text-muted">{friendlyError(chatError.category)}</p>
+              <p className="mt-1 text-sm text-muted">{friendlyError(chatError.category, chatError.upstreamMessage)}</p>
               {chatError.retryAfter !== undefined && (
                 <p className="mt-1 text-xs text-muted/80">Try again in {Math.ceil(chatError.retryAfter / 60) || 1} min.</p>
               )}
