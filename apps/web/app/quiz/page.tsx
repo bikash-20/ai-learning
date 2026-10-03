@@ -41,7 +41,11 @@ export default function QuizPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ quizId: s.quizId, answers }),
     });
-    const j = (await res.json()) as { score: number; total: number; results: Array<{ itemId: string; aiExplanation?: string; correct: boolean; correctIdx: number }> };
+    const j = (await res.json()) as {
+      score: number;
+      total: number;
+      results: Array<{ itemId: string; aiExplanation?: string; correct: boolean; correctIdx: number }>;
+    };
     const explanations: Record<string, string> = {};
     for (const r of j.results) if (r.aiExplanation) explanations[r.itemId] = r.aiExplanation;
     setState({ kind: 'submitted', score: j.score, total: j.total, explanations });
@@ -50,23 +54,41 @@ export default function QuizPage() {
   if (s.kind === 'idle' || s.kind === 'generating') {
     return (
       <main className="mx-auto max-w-xl px-6 py-12">
-        <h1 className="text-2xl font-semibold">Quiz</h1>
-        <div className="mt-6 space-y-3">
+        <h1 className="text-2xl font-semibold text-fg">Quiz</h1>
+        <div className="mt-6 space-y-4">
           <label className="block">
-            <span className="text-sm text-zinc-600">Topic</span>
-            <input value={topic} onChange={(e) => setTopic(e.target.value)} className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm" />
+            <span className="text-sm text-muted">Topic</span>
+            <input
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              className="input-base mt-1"
+              placeholder="e.g. IELTS grammar, conditionals, vocabulary"
+            />
           </label>
           <label className="block">
-            <span className="text-sm text-zinc-600">Level</span>
-            <select value={level} onChange={(e) => setLevel(e.target.value as Level)} className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm">
-              {LEVELS.map((l) => <option key={l}>{l}</option>)}
+            <span className="text-sm text-muted">Level</span>
+            <select
+              value={level}
+              onChange={(e) => setLevel(e.target.value as Level)}
+              className="input-base mt-1"
+            >
+              {LEVELS.map((l) => (
+                <option key={l}>{l}</option>
+              ))}
             </select>
           </label>
           <label className="block">
-            <span className="text-sm text-zinc-600">Questions</span>
-            <input type="number" min={1} max={20} value={n} onChange={(e) => setN(Number(e.target.value))} className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm" />
+            <span className="text-sm text-muted">Questions</span>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={n}
+              onChange={(e) => setN(Number(e.target.value))}
+              className="input-base mt-1"
+            />
           </label>
-          <button onClick={start} disabled={s.kind === 'generating'} className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <button onClick={start} disabled={s.kind === 'generating'} className="btn-primary">
             {s.kind === 'generating' ? 'Generating…' : 'Generate quiz'}
           </button>
         </div>
@@ -79,24 +101,43 @@ export default function QuizPage() {
     const picked = s.picks[s.idx];
     return (
       <main className="mx-auto max-w-2xl px-6 py-12">
-        <div className="text-sm text-zinc-500">Question {s.idx + 1} / {s.items.length}</div>
-        <h2 className="mt-2 text-xl font-semibold">{it.prompt}</h2>
+        <div className="text-sm text-muted">Question {s.idx + 1} / {s.items.length}</div>
+        <h2 className="mt-2 text-xl font-semibold text-fg">{it.prompt}</h2>
         <div className="mt-6 space-y-2">
-          {it.options.map((opt, i) => (
-            <button
-              key={i}
-              onClick={() => setState({ ...s, picks: { ...s.picks, [s.idx]: i } })}
-              className={`block w-full border px-4 py-3 text-left text-sm rounded-xl ${picked === i ? 'border-accent bg-accent/10' : 'border-zinc-200 bg-white'}`}
-            >
-              {opt}
-            </button>
-          ))}
+          {it.options.map((opt, i) => {
+            const isPicked = picked === i;
+            return (
+              <button
+                key={i}
+                onClick={() => setState({ ...s, picks: { ...s.picks, [s.idx]: i } })}
+                className={`block w-full rounded-xl border px-4 py-3 text-left text-sm transition ${
+                  isPicked
+                    ? 'border-primary bg-surface-2 text-fg'
+                    : 'border-border bg-surface text-fg hover:border-secondary'
+                }`}
+              >
+                {opt}
+              </button>
+            );
+          })}
         </div>
         <div className="mt-6 flex justify-end gap-2">
           {s.idx < s.items.length - 1 ? (
-            <button onClick={() => setState({ ...s, idx: s.idx + 1 })} disabled={picked === undefined} className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white disabled:opacity-50">Next</button>
+            <button
+              onClick={() => setState({ ...s, idx: s.idx + 1 })}
+              disabled={picked === undefined}
+              className="btn-primary"
+            >
+              Next
+            </button>
           ) : (
-            <button onClick={submit} disabled={Object.keys(s.picks).length !== s.items.length} className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white disabled:opacity-50">Submit</button>
+            <button
+              onClick={submit}
+              disabled={Object.keys(s.picks).length !== s.items.length}
+              className="btn-primary"
+            >
+              Submit
+            </button>
           )}
         </div>
       </main>
@@ -105,8 +146,10 @@ export default function QuizPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
-      <h1 className="text-2xl font-semibold">Result: {s.score} / {s.total}</h1>
-      <button onClick={() => setState({ kind: 'idle' })} className="mt-4 rounded-xl border border-zinc-200 bg-white px-5 py-2 text-sm">New quiz</button>
+      <h1 className="text-2xl font-semibold text-fg">Result: {s.score} / {s.total}</h1>
+      <button onClick={() => setState({ kind: 'idle' })} className="btn-secondary mt-4">
+        New quiz
+      </button>
     </main>
   );
 }

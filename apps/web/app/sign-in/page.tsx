@@ -28,8 +28,8 @@ export default function SignInPage() {
 
   return (
     <main className="mx-auto max-w-md px-6 py-16">
-      <h1 className="text-3xl font-bold">Sign in</h1>
-      <p className="mt-2 text-sm text-zinc-500">We'll email you a one-time link.</p>
+      <h1 className="text-3xl font-bold text-fg">Sign in</h1>
+      <p className="mt-2 text-sm text-muted">We'll email you a one-time link.</p>
       <form onSubmit={send} className="mt-6 space-y-3">
         <input
           type="email"
@@ -37,18 +37,19 @@ export default function SignInPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm focus:border-accent focus:outline-none"
+          className="input-base"
         />
-        <button
-          type="submit"
-          disabled={status === 'sending'}
-          className="w-full rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <button type="submit" disabled={status === 'sending'} className="btn-primary w-full">
           {status === 'sending' ? 'Sending…' : 'Send magic link'}
         </button>
       </form>
       {msg && (
-        <p className={`mt-4 text-sm ${status === 'error' ? 'text-red-600' : 'text-emerald-600'}`}>{msg}</p>
+        <p
+          role="status"
+          className={`mt-4 text-sm ${status === 'error' ? 'text-danger' : 'text-accent'}`}
+        >
+          {msg}
+        </p>
       )}
     </main>
   );

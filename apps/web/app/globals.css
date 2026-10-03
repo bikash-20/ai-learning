@@ -2,4 +2,143 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { background: theme('colors.bg'); color: theme('colors.fg'); }
+/* ---------- Color tokens ---------- */
+:root {
+  /* Palette */
+  --c-950: #001D39;
+  --c-800: #0A4174;
+  --c-600: #49769F;
+  --c-500: #4E8EA2;
+  --c-400: #6EA2B3;
+  --c-300: #7BBDE8;
+  --c-100: #BDD8E9;
+
+  /* Semantic — light mode */
+  --bg: #F1F7FB;        /* pale tint of c-100 */
+  --surface: #FFFFFF;
+  --surface-2: #E5EEF5; /* slightly darker than bg, for inputs */
+  --fg: #001D39;
+  --muted: #49769F;
+  --primary: #0A4174;
+  --primary-fg: #FFFFFF;
+  --secondary: #49769F;
+  --accent: #4E8EA2;
+  --ring: #7BBDE8;
+  --border: #BDD8E9;
+
+  --danger: #B91C1C;
+  --warning: #B45309;
+}
+
+.dark {
+  --bg: #001D39;
+  --surface: #0A4174;
+  --surface-2: #062B4D;
+  --fg: #BDD8E9;
+  --muted: #6EA2B3;
+  --primary: #7BBDE8;
+  --primary-fg: #001D39;
+  --secondary: #4E8EA2;
+  --accent: #4E8EA2;
+  --ring: #7BBDE8;
+  --border: #0A4174;
+
+  --danger: #F87171;
+  --warning: #FBBF24;
+}
+
+html, body { background: var(--bg); color: var(--fg); }
+
+/* ---------- CEFR badge gradient ---------- */
+.cefr-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  color: #001D39;
+  border: 1px solid rgba(0, 29, 57, 0.12);
+}
+.cefr-A1 { background: var(--c-100); }
+.cefr-A2 { background: var(--c-300); }
+.cefr-B1 { background: var(--c-400); }
+.cefr-B2 { background: var(--c-500); color: #FFFFFF; }
+.cefr-C1 { background: var(--c-600); color: #FFFFFF; }
+.cefr-C2 { background: var(--c-800); color: #FFFFFF; }
+
+/* ---------- Focus rings ---------- */
+:where(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ---------- Form base style ---------- */
+.input-base {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  width: 100%;
+}
+.input-base::placeholder { color: var(--muted); }
+.input-base:focus { border-color: var(--secondary); outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 40%, transparent); }
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-radius: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: filter 0.15s ease;
+}
+.btn-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--secondary); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-secondary {
+  background: var(--surface-2);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: border-color 0.15s ease;
+}
+.btn-secondary:hover { border-color: var(--secondary); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 1rem;
+}
+
+.divider { border-color: var(--border); }
+
+/* ---------- Chat bubbles ---------- */
+.bubble-user {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-radius: 1rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  max-width: 80%;
+}
+.bubble-tutor {
+  background: var(--c-100);
+  color: var(--fg);
+  border-radius: 1rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  max-width: 80%;
+}
+.dark .bubble-tutor {
+  background: var(--surface-2);
+  color: var(--fg);
+}

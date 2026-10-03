@@ -54,13 +54,16 @@ export default function ChatPage() {
   };
 
   return (
-    <main className="mx-auto flex h-dvh max-w-3xl flex-col px-4 py-6">
-      <h1 className="text-2xl font-semibold">Chat</h1>
-      <div ref={scrollRef} className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-4">
-        {messages.length === 0 && <p className="text-sm text-zinc-400">Ask a question to start.</p>}
+    <main className="mx-auto flex h-[calc(100dvh-57px)] max-w-3xl flex-col px-4 py-6">
+      <h1 className="text-2xl font-semibold text-fg">Chat</h1>
+      <div
+        ref={scrollRef}
+        className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-2xl border border-border bg-surface p-4"
+      >
+        {messages.length === 0 && <p className="text-sm text-muted">Ask a question to start.</p>}
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm ${m.role === 'user' ? 'bg-accent text-white' : 'bg-zinc-100'}`}>
+            <div className={m.role === 'user' ? 'bubble-user' : 'bubble-tutor'}>
               {m.content || (streaming && i === messages.length - 1 ? '…' : '')}
             </div>
           </div>
@@ -73,9 +76,9 @@ export default function ChatPage() {
           onKeyDown={(e) => e.key === 'Enter' && send()}
           disabled={streaming}
           placeholder="Ask anything…"
-          className="flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm focus:border-accent focus:outline-none"
+          className="input-base flex-1"
         />
-        <button onClick={send} disabled={streaming || !input.trim()} className="rounded-xl bg-accent px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
+        <button onClick={send} disabled={streaming || !input.trim()} className="btn-primary">
           Send
         </button>
       </div>
