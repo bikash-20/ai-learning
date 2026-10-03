@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../env';
 import { requireAuth } from '../lib/requireAuth';
 import { idemMiddleware, idemStore, rateLimit } from '../lib/ratelimit';
-import { handleError, err } from '../lib/errors';
+import { handleError } from '../lib/errors';
 import { chat as chatAI } from '../ai/provider';
 import { SYSTEM_TUTOR } from '../ai/prompt';
 import { ChatRequest, ErrorCode } from '@ai-learning/shared';
@@ -69,7 +69,9 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
                       fullText += j.response;
                       controller.enqueue(sse('token', { text: j.response }));
                     }
-                  } catch {}
+                  } catch {
+                    /* malformed SSE line, skip */
+                  }
                 }
               }
             } finally {

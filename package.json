@@ -13,8 +13,10 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md,json,yaml,yml}\""
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "prettier": "^3.4.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.71.0"
   },
   "packageManager": "pnpm@9.15.9",
   "engines": {

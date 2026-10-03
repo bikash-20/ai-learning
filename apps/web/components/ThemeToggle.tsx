@@ -20,9 +20,9 @@ export const ThemeToggle = () => {
     <button
       onClick={toggle}
       aria-label="Toggle dark mode"
-      className="ml-2 rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-sm text-fg hover:border-secondary"
+      className="ml-1 rounded-pill border border-glass-border bg-glass-bg px-3 py-1 text-xs text-fg hover:border-accent"
     >
-      {dark ? 'Light' : 'Dark'}
+      {dark ? '☀ Light' : '☾ Dark'}
     </button>
   );
 };
