@@ -1,45 +1,252 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { BRAND, todaysTip } from '@/lib/brand';
+import { GRID_TILES, TILE_ACCENT, type HubTile } from '@/lib/hubConfig';
 import { useSession } from '@/lib/useSession';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { GlassCard } from '@/components/ui/GlassCard';
+import { Button } from '@/components/ui/Button';
+import { BrandMark, BrandWordmark, FounderCredit } from '@/components/Brand';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
-const tiles = [
-  { href: '/chat', title: 'Chat with a tutor', desc: 'Ask anything about English grammar, IELTS, vocabulary.' },
-  { href: '/quiz', title: 'Take a quiz', desc: 'AI-generated questions on any topic, any CEFR level.' },
-  { href: '/vocab', title: 'Browse vocabulary', desc: 'Authored word lists with examples and level tags.' },
-  { href: '/grammar', title: 'Grammar topics', desc: 'Curated grammar explanations with examples.' },
-];
+type HealthState = 'unknown' | 'live' | 'offline';
+
+const useHealthState = (): HealthState => {
+  const [state, setState] = useState<HealthState>('unknown');
+  useEffect(() => {
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+    if (!base) {
+      setState('offline');
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4_000);
+    fetch(`${base}/api/health/models`, { signal: ctrl.signal, credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`API ${r.status}`))))
+      .then((j: { providers?: { workers?: Array<{ ok: boolean }> } }) => {
+        const anyOk = (j.providers?.workers ?? []).some((m) => m.ok);
+        setState(anyOk ? 'live' : 'offline');
+      })
+      .catch(() => setState('offline'))
+      .finally(() => clearTimeout(t));
+    return () => ctrl.abort();
+  }, []);
+  return state;
+};
+
+const HealthChip = ({ state }: { state: HealthState }) => {
+  if (state === 'live') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-pill border border-success/30 bg-success/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-success">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+        </span>
+        Live now
+      </span>
+    );
+  }
+  if (state === 'offline') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-pill border border-glass-border bg-glass-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+        <span className="h-2 w-2 rounded-full bg-muted" />
+        Offline
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-pill border border-glass-border bg-glass-bg px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+      <span className="h-2 w-2 rounded-full bg-muted/60" />
+      Checking
+    </span>
+  );
+};
+
+const Tile = ({ tile, onChip }: { tile: HubTile; onChip?: (label: string) => void }) => {
+  const accent = TILE_ACCENT[tile.accent ?? 'accent'];
+  return (
+    <Link
+      href={tile.href}
+      className="block min-h-[44px] rounded-glass focus:outline-none"
+      aria-label={`${tile.title}: ${tile.desc}`}
+    >
+      <GlassCard hoverable className="flex h-full flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-card border text-base ${accent}`}
+          >
+            {tile.icon}
+          </span>
+          <div className="font-display text-lg tracking-display text-fg">{tile.title}</div>
+        </div>
+        <p className="text-sm text-muted">{tile.desc}</p>
+        {tile.extras?.kind === 'progress' && (
+          <div className="mt-1">
+            <div className="h-1.5 w-full overflow-hidden rounded-pill bg-glass-bg">
+              <div
+                className="h-full rounded-pill bg-accent"
+                style={{ width: `${Math.max(0, Math.min(100, tile.extras.value))}%` }}
+                aria-label={`${tile.extras.value}% complete`}
+              />
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-wide text-muted">
+              {tile.extras.value}% mastered
+            </div>
+          </div>
+        )}
+        {tile.extras?.kind === 'chips' && (
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {tile.extras.chips.map((c) => (
+              <button
+                key={c.label}
+                type="button"
+                onClick={(e) => { e.preventDefault(); onChip?.(c.label); }}
+                className="rounded-pill border border-glass-border bg-glass-bg px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-fg hover:border-accent"
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </GlassCard>
+    </Link>
+  );
+};
 
 export default function ExplorePage() {
-  // The (app) layout has already verified the session and will redirect to
-  // /sign-in if not signed in. We still read the user here so the greeting
-  // can be personalised.
-  const { user } = useSession();
+  const router = useRouter();
+  const { user, signOut } = useSession();
+  const health = useHealthState();
+  const [tip] = useState<string>(() => todaysTip());
+  const isAdmin = !!user?.email && user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const tiles = GRID_TILES(isAdmin);
+
+  const onTileChip = (tileId: string, label: string) => {
+    // Map a "Easy" / "Hard" chip into a quiz level query string.
+    const level = label === 'Easy' ? 'A2' : label === 'Hard' ? 'C1' : null;
+    if (level) router.push(`${tileId === 'quiz' ? '/quiz' : '/quiz'}?level=${level}`);
+    else router.push('/quiz');
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.replace('/sign-in');
+  };
 
   return (
-    <main className="relative">
-      <PageHeader
-        title="Explore"
-        subtitle={user ? (user.name ? `Hi ${user.name} — pick a learning mode.` : `Hi ${user.email} — pick a learning mode.`) : 'Loading…'}
-      />
+    <main className="space-y-6">
+      {/* === HERO === */}
+      <GlassCard className="space-y-5">
+        <div className="flex items-center justify-between gap-2">
+          <HealthChip state={health} />
+          <ThemeToggle />
+        </div>
 
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {tiles.map((t) => (
-          <Link key={t.href} href={t.href} className="block focus:outline-none">
-            <GlassCard hoverable className="h-full transition-transform hover:-translate-y-0.5">
-              <div className="fluid-display-md text-fg">{t.title}</div>
-              <div className="mt-2 text-sm text-muted">{t.desc}</div>
-            </GlassCard>
-          </Link>
-        ))}
+        <div className="flex items-start gap-4">
+          <BrandMark size={56} className="text-fg shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] uppercase tracking-wide text-muted">
+              {BRAND.founder.title} · {BRAND.founder.name}
+            </p>
+            <h1
+              className="mt-1 text-3xl font-semibold leading-tight text-fg sm:text-4xl"
+              style={{ fontFamily: 'var(--font-hero), serif' }}
+            >
+              Explore <span className="text-accent">{BRAND.appName}</span>
+            </h1>
+            <p className="mt-2 text-sm text-muted sm:text-base">
+              {BRAND.tagline}
+            </p>
+          </div>
+        </div>
+
+        {/* Hero CTA: Chat with Quantara */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="text-xl">✨</span>
+            <span className="font-display text-xl tracking-display text-fg">
+              Chat with {BRAND.appName}
+            </span>
+          </div>
+          <p className="text-sm text-muted">
+            One-on-one with the tutor. Streaming answers, real explanations, model chip on every reply.
+          </p>
+
+          {/* Daily tip — quote/box with the brand avatar. */}
+          <div className="flex items-start gap-3 rounded-card border border-glass-border bg-glass-bg/50 p-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <BrandMark size={22} />
+            </div>
+            <p className="text-sm italic text-fg/90">"{tip}"</p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button onClick={() => router.push('/chat')} className="flex-1 sm:flex-none">
+              <span aria-hidden="true" className="mr-1">💬</span>
+              Start chatting
+            </Button>
+            <Button variant="secondary" onClick={() => router.push('/exam')} className="flex-1 sm:flex-none">
+              <span aria-hidden="true" className="mr-1">📝</span>
+              Exam
+            </Button>
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* === TILES GRID === */}
+      <section aria-label="Features" className="space-y-3">
+        <h2 className="font-display text-sm uppercase tracking-display text-muted">
+          Learn
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {tiles.map((t) => (
+            <Tile
+              key={t.id}
+              tile={t}
+              onChip={(label) => onTileChip(t.id, label)}
+            />
+          ))}
+        </div>
       </section>
 
-      <GlassCard className="mt-8">
-        <div className="text-xs uppercase tracking-wide text-muted">Account</div>
-        <div className="mt-1 text-sm text-fg">{user?.email ?? ''}</div>
+      {/* === ACCOUNT AREA === */}
+      <GlassCard className="space-y-3">
+        <h2 className="font-display text-sm uppercase tracking-display text-muted">
+          Account
+        </h2>
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-glass-border bg-primary/15 text-sm font-semibold text-primary"
+          >
+            {(user?.name || user?.email || '·').slice(0, 1).toUpperCase()}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium text-fg">
+              {user?.name ?? user?.email ?? 'Not signed in'}
+            </div>
+            {user?.name && user.email && (
+              <div className="truncate text-xs text-muted">{user.email}</div>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" size="sm" onClick={() => router.push('/explore')}>
+            Explore
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleSignOut}>
+            Logout
+          </Button>
+        </div>
       </GlassCard>
+
+      <div className="flex flex-col items-center gap-1 pt-2">
+        <BrandWordmark size="sm" />
+        <FounderCredit compact />
+      </div>
     </main>
   );
 }
