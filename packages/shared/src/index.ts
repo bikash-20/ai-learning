@@ -257,4 +257,14 @@ export const ExamSubmitResponse = z.object({
   results: z.array(ExamResultItem),
 });
 export type ExamSubmitResponse = z.infer<typeof ExamSubmitResponse>;
+
+// ---------- User prefs (per-feature toggles) ----------
+export const UserPrefs = z.object({
+  aiExplain: z.boolean().default(true),
+  theme: z.enum(['system', 'light', 'dark']).default('system'),
+});
+export type UserPrefsT = z.infer<typeof UserPrefs>;
+
+export const UserPrefsPatch = UserPrefs.partial();
+export type UserPrefsPatchT = z.infer<typeof UserPrefsPatch>;
 export type ExamTemplate = z.infer<typeof ExamTemplate>;

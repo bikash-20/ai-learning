@@ -195,6 +195,19 @@ export const aiCache = sqliteTable('ai_cache', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
 
+// ---------- User preferences ----------
+// Per-user toggles. Created lazily on first GET /api/me/prefs; one row
+// per user. Theme + AI explain for now — keep additive.
+export const userPrefs = sqliteTable('user_prefs', {
+  userId: text('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
+  /** Show AI explanation alongside the static one on quiz reveal. Off =
+   *  static only — saves free-tier AI quota. Default true. */
+  aiExplain: integer('ai_explain', { mode: 'boolean' }).notNull().default(true),
+  /** 'system' = follow OS, 'light' | 'dark' override. */
+  theme: text('theme', { enum: ['system', 'light', 'dark'] }).notNull().default('system'),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
+
 // ---------- MCQ bank ----------
 // Authored multiple-choice questions, keyed by topic + CEFR level. The quiz
 // route consults this table before falling back to AI generation. The

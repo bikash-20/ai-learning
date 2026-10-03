@@ -10,6 +10,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { OptionButton, type OptionState } from '@/components/ui/OptionButton';
 import { ModelChip } from '@/components/ui/ModelChip';
+import { usePrefs } from '@/lib/usePrefs';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
@@ -107,6 +108,10 @@ export default function QuizPage() {
   const [err, setErr] = useState<ErrInfo | null>(null);
   const [now, setNow] = useState<number>(0);
   const startedAtRef = useRef<number>(0);
+  const prefs = usePrefs();
+  // If the user has turned off AI explanations, skip the explain call
+  // entirely. Defaults to true until prefs load.
+  const aiExplainEnabled = prefs?.aiExplain !== false;
 
   // Re-focus Check / Next button after reveal so keyboard learners can keep going.
   const nextBtnRef = useRef<HTMLButtonElement>(null);
@@ -199,6 +204,15 @@ export default function QuizPage() {
       revealed: { ...s.revealed, [s.idx]: true },
       explainPending: { ...s.explainPending, [s.idx]: true },
     });
+    // User has turned AI explain off — just show the static explanation
+    // and skip the cascade call entirely.
+    if (!aiExplainEnabled) {
+      setState((cur) => {
+        if (cur.kind !== 'playing') return cur;
+        return { ...cur, explainPending: { ...cur.explainPending, [cur.idx]: undefined as never } };
+      });
+      return;
+    }
     // Fire the AI explain (cached server-side, may be a cache hit).
     try {
       const body: QuizExplainRequest = {

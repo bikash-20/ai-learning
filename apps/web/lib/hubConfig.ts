@@ -93,6 +93,14 @@ export const HUB_TILES: HubTile[] = [
     accent: 'success',
   },
   {
+    id: 'settings',
+    title: 'Settings',
+    desc: 'AI explanations, theme, and per-user toggles.',
+    icon: '⚙️',
+    href: '/settings',
+    accent: 'accent',
+  },
+  {
     id: 'admin',
     title: 'Admin',
     desc: 'Feature flags, rate-limit overrides, AI cache.',
