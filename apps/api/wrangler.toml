@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "ai-learning-db"
-database_id = "REPLACE_AFTER_WRANGLER_D1_CREATE"
+database_id = "abce8487-a347-4a52-b966-04e220d12d5d"
 migrations_dir = "migrations"
 
 # --- Durable Objects (rate limiter + chat session) ---
@@ -27,6 +27,7 @@ new_sqlite_classes = ["RateLimiter", "ChatSession"]
 # --- Analytics Engine (observability for AI calls) ---
 [[analytics_engine_datasets]]
 binding = "ANALYTICS"
+dataset = "ai-learning-analytics"
 
 # --- AI binding (Workers AI) ---
 # No binding stanza needed — `env.AI` is implicit on Workers.
