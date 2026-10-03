@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import * as schema from '../db/schema';
 import { handleError } from '../lib/errors';
-import { Level, type Level as LevelT } from '@ai-learning/shared';
+import { Level, type Level as LevelT } from '@quantara/shared';
 
 const parseLevel = (q: string | undefined): LevelT | undefined => {
   if (!q || !Level.safeParse(q).success) return undefined;

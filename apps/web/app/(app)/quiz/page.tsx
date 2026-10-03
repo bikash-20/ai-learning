@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Level, QuizItem, QuizExplainRequest, QuizExplainResponse } from '@ai-learning/shared';
+import type { Level, QuizItem, QuizExplainRequest, QuizExplainResponse } from '@quantara/shared';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';

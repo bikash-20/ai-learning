@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import type { Env } from '../env';
-import { ErrorCode, type ApiErrorT } from '@ai-learning/shared';
+import { ErrorCode, type ApiErrorT } from '@quantara/shared';
 import { withCors } from './cors';
 
 export const err = (c: Context, status: number, code: ErrorCode, message: string, details?: unknown) => {

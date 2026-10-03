@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           href="/sign-in"
           className="whitespace-nowrap font-display text-lg text-fg sm:text-xl"
         >
-          AI LEARNING
+          QUANTARA
         </Link>
         <ThemeToggle />
       </header>

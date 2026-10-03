@@ -13,7 +13,7 @@ import {
   QuizAttemptRequest,
   QuizExplainRequest,
   ErrorCode,
-} from '@ai-learning/shared';
+} from '@quantara/shared';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../db/schema';
 import { eq } from 'drizzle-orm';

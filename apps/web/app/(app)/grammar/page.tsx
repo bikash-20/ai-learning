@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Grammar } from '@ai-learning/shared';
+import type { Grammar } from '@quantara/shared';
 import { CefrBadge } from '@/components/CefrBadge';
 import { LevelFilter } from '@/components/ui/LevelFilter';
 import { FilteredListPage } from '@/components/ui/FilteredListPage';

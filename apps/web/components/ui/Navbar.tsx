@@ -12,7 +12,7 @@ export const Navbar = () => (
         href="/"
         className="whitespace-nowrap font-display text-lg text-fg sm:text-xl"
       >
-        AI LEARNING
+        QUANTARA
       </Link>
       {/* Desktop links */}
       <div className="hidden items-center gap-1 text-sm md:flex">

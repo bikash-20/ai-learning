@@ -1,6 +1,6 @@
 import type { Env } from '../env';
 import { resolveWorkersAiModels } from '../env';
-import type { ChatMessage } from '@ai-learning/shared';
+import type { ChatMessage } from '@quantara/shared';
 
 export type Provider = 'workers' | 'openrouter';
 
@@ -106,8 +106,8 @@ const tryModel = async (
       headers: {
         Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://ai-learning.workers.dev',
-        'X-Title': 'ai-learning',
+        'HTTP-Referer': 'https://quantara.app',
+        'X-Title': 'quantara',
       },
       body: JSON.stringify({
         model,

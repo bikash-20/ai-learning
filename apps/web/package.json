@@ -1,5 +1,5 @@
 {
-  "name": "@ai-learning/web",
+  "name": "@quantara/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -11,7 +11,7 @@
     "test": "echo 'no tests yet'"
   },
   "dependencies": {
-    "@ai-learning/shared": "workspace:*",
+    "@quantara/shared": "workspace:*",
     "@tanstack/react-query": "^5.62.7",
     "better-auth": "^1.0.0",
     "next": "^15.1.2",

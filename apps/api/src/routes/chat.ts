@@ -6,7 +6,7 @@ import { handleError } from '../lib/errors';
 import { withCors } from '../lib/cors';
 import { openRouterCascade, AllUpstreamError, UpstreamAuthError } from '../ai/cascade';
 import { SYSTEM_TUTOR } from '../ai/prompt';
-import { ChatRequest, ErrorCode } from '@ai-learning/shared';
+import { ChatRequest, ErrorCode } from '@quantara/shared';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import * as schema from '../db/schema';

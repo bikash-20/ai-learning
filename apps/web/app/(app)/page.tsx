@@ -18,7 +18,7 @@ export default function Home() {
       <section className="relative">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h1 className="fluid-display-xl text-fg">AI LEARNING</h1>
+            <h1 className="fluid-display-xl text-fg">QUANTARA</h1>
             <p className="mt-3 max-w-md text-sm text-muted">
               Practice English with an AI tutor. Built for IELTS, grammar, vocabulary.
             </p>

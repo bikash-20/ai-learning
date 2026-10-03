@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Vocab } from '@ai-learning/shared';
+import type { Vocab } from '@quantara/shared';
 import { CefrBadge } from '@/components/CefrBadge';
 import { Badge } from '@/components/ui/Badge';
 import { LevelFilter } from '@/components/ui/LevelFilter';

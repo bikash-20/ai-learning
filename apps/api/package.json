@@ -1,5 +1,5 @@
 {
-  "name": "@ai-learning/api",
+  "name": "@quantara/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "tail": "wrangler tail"
   },
   "dependencies": {
-    "@ai-learning/shared": "workspace:*",
+    "@quantara/shared": "workspace:*",
     "better-auth": "^1.0.0",
     "drizzle-orm": "^0.36.4",
     "hono": "^4.6.14",

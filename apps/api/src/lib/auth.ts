@@ -36,7 +36,7 @@ export const auth = (env: Env) => {
             body: JSON.stringify({
               from,
               to: email,
-              subject: 'Sign in to AI Learning',
+              subject: 'Sign in to Quantara',
               html: `<p>Click to sign in (expires in 5 min):</p><p><a href="${url}">${url}</a></p>`,
             }),
           });

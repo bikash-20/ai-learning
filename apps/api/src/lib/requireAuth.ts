@@ -2,7 +2,7 @@ import type { Context, Next } from 'hono';
 import type { Env } from '../env';
 import { auth } from './auth';
 import { err } from './errors';
-import { ErrorCode } from '@ai-learning/shared';
+import { ErrorCode } from '@quantara/shared';
 
 export const requireAuth = async (c: Context<{ Bindings: Env; Variables: { userId: string } }>, next: Next) => {
   const session = await auth(c.env).api.getSession({ headers: c.req.raw.headers });

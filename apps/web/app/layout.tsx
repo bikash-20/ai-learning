@@ -5,7 +5,7 @@ import { fontVariables } from '@/lib/fonts';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'AI Learning',
+  title: 'Quantara',
   description: 'AI-powered English practice — IELTS, grammar, vocabulary.',
 };
 

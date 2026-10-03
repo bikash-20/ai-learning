@@ -2,7 +2,7 @@ import type { Env } from '../env';
 import { HAIKU_MODEL, resolveWorkersAiModels } from '../env';
 import { trackAI } from '../lib/analytics';
 import { cacheGet, cachePut, cacheKey, type CacheKind } from '../lib/aicache';
-import type { ChatMessage } from '@ai-learning/shared';
+import type { ChatMessage } from '@quantara/shared';
 import {
   openRouterCascade,
   openRouterCascadeJson,

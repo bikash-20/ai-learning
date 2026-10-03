@@ -1,4 +1,4 @@
-import type { Level, Topic } from '@ai-learning/shared';
+import type { Level, Topic } from '@quantara/shared';
 
 export const SYSTEM_TUTOR = (level: Level) =>
   `You are a concise English tutor. Adapt explanations to CEFR level ${level}. ` +

@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import type { Env } from '../env';
 import { err } from './errors';
-import { ErrorCode } from '@ai-learning/shared';
+import { ErrorCode } from '@quantara/shared';
 
 const BUCKETS = {
   chat: { limit: 30, windowMs: 24 * 60 * 60_000 },     // 30/day

@@ -15,7 +15,7 @@
       }
     ],
     "paths": {
-      "@ai-learning/shared": [
+      "@quantara/shared": [
         "../../packages/shared/src/index.ts"
       ],
       "@/*": [
