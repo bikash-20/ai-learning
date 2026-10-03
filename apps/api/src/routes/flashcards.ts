@@ -103,6 +103,151 @@ const srsStep = (cur: SrsStateT, grade: 0 | 1 | 2 | 3): SrsStateT => {
 const XP_BY_GRADE = [0, 1, 3, 6] as const;
 const initialSrs = (): SrsStateT => ({ intervalDays: 0, ease: 2.5, dueAt: Date.now() });
 
+/** Max cards per AI call. Smaller batches complete inside the cascade
+ *  budget (Workers AI + OpenRouter combined < 22s) and one bad batch
+ *  doesn't burn the whole request. */
+const DECK_BATCH_SIZE = 5;
+
+type GenerateBatchArgs = {
+  env: Env;
+  topic: string;
+  level: Level;
+  totalN: number;
+  language: 'en' | 'bn' | 'bn-en';
+  sourceText?: string | undefined;
+  difficulty: 'easy' | 'hard';
+  route: string;
+  /** Optional list of fronts to de-dupe against within this call. */
+  excludeFronts?: string[] | undefined;
+  /** If supplied, callers reuse this user prompt shape (e.g. add-more). */
+  userPrompt?: string | undefined;
+  /**
+   * Optional per-request deadline in ms (absolute epoch time). All batches
+   * share this budget so a misbehaving upstream can't burn 22s × N batches.
+   * Defaults to a sane per-request budget (60s for up to 4 batches).
+   */
+  deadlineMs?: number | undefined;
+};
+
+/**
+ * Generate `totalN` cards in batches of DECK_BATCH_SIZE. Runs each batch
+ * through the JSON cascade independently. If one batch fails the others
+ * still return — the caller decides how to surface partial results.
+ *
+ * Returns `{ title, cards, partial, providers, models, cached }` where
+ * `partial = true` means at least one batch failed but we have cards
+ * from the others.
+ */
+async function generateDeckBatch(args: GenerateBatchArgs): Promise<{
+  title: string;
+  cards: FlashCardGenT[];
+  partial: boolean;
+  providers: Array<'workers' | 'openrouter'>;
+  models: string[];
+  cached: boolean;
+}> {
+  const sizes: number[] = [];
+  let remaining = args.totalN;
+  while (remaining > 0) {
+    const take = Math.min(DECK_BATCH_SIZE, remaining);
+    sizes.push(take);
+    remaining -= take;
+  }
+  // Shared envelope across all batches in this request. Each batch's chatJson
+  // is told its own budget (= remaining ms), so one bad batch can't burn
+  // 22s × N and make the user wait minutes for a 503.
+  const start = Date.now();
+  const totalBudgetMs = args.deadlineMs !== undefined
+    ? Math.max(0, args.deadlineMs - start)
+    : 30_000; // up to 4×5 cards + headroom; tighter than per-batch × N
+  const cards: FlashCardGenT[] = [];
+  const providers: Array<'workers' | 'openrouter'> = [];
+  const models: string[] = [];
+  let cached = true;
+  let title = '';
+  let partial = false;
+  // Track fronts across batches so we don't duplicate within a single request.
+  const seen = new Set<string>(
+    (args.excludeFronts ?? []).map((f) => f.trim().toLowerCase()),
+  );
+
+  for (let i = 0; i < sizes.length; i++) {
+    const batchN = sizes[i]!;
+    const remainingBatches = sizes.length - i;
+    const elapsed = Date.now() - start;
+    // Give this batch whatever time is left, divided across the remaining
+    // batches with a 4s floor so even the last batch has a chance to succeed.
+    const perBatchMs = Math.max(4_000, Math.floor((totalBudgetMs - elapsed) / remainingBatches));
+    // If the envelope is already exhausted, abort early — no point starting a
+    // batch we can't possibly finish.
+    if (perBatchMs <= 0 || Date.now() >= start + totalBudgetMs) {
+      console.warn('flashcards_batches_skipped', {
+        route: args.route,
+        done: i,
+        remaining: sizes.length - i,
+        elapsed,
+        totalBudgetMs,
+      });
+      partial = true;
+      break;
+    }
+    const system = FLASHCARD_GEN_PROMPT(
+      args.topic,
+      args.level,
+      batchN,
+      args.language,
+      args.sourceText,
+      args.difficulty,
+    );
+    const userPrompt =
+      args.userPrompt ?? `Generate ${batchN} flashcards on "${args.topic}".`;
+    try {
+      const { parsed, out } = await chatJson<FlashDeckGenJsonT>(
+        args.env,
+        args.route,
+        {
+          system,
+          messages: [{ role: 'user', content: userPrompt }],
+          temperature: 0.5,
+          maxTokens: 2048,
+        },
+        (raw) => FlashDeckGenJson.parse(raw),
+        { budgetMs: perBatchMs },
+      );
+      // Take the title from the first batch that produced one.
+      if (!title && parsed.title) title = parsed.title;
+      providers.push(out.provider);
+      models.push(out.model);
+      if (!out.cached) cached = false;
+      for (const card of parsed.cards) {
+        const key = card.front.trim().toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        cards.push(card);
+      }
+    } catch (e) {
+      // One bad batch shouldn't kill the whole deck — surface the partial
+      // result and let the route decide what to do.
+      console.warn('flashcards_generate_batch_failed', {
+        route: args.route,
+        batch: i + 1,
+        batchN,
+        err: String(e).slice(0, 200),
+      });
+      partial = true;
+    }
+  }
+
+  return {
+    title: title || `${args.topic} — flashcards`,
+    cards,
+    partial,
+    providers,
+    models,
+    cached,
+  };
+}
+
 /** Tag list helper — defends against null/empty cells from old rows. */
 const parseTags = (raw: string | null | undefined): string[] => {
   if (!raw) return [];
@@ -233,40 +378,51 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
   })
 
   /** AI deck preview. Calls chatJson cascade, returns the parsed result,
-   *  stamps X-Model-Used, and does NOT persist anything. */
+   *  stamps X-Model-Used, and does NOT persist anything. Runs in batches
+   *  of DECK_BATCH_SIZE so large requests don't burn the cascade budget
+   *  on a single call. */
   .post('/api/flashcards/decks/generate', requireAuth, async (c) => {
     try {
       const rl = await rateLimit(c, 'flashcardsGen');
       if (rl) return rl;
       const body = FlashDeckGenRequest.parse(await c.req.json());
-      const system = FLASHCARD_GEN_PROMPT(
-        body.topic,
-        body.level,
-        body.n,
-        body.language,
-        body.sourceText,
-        body.difficulty,
-      );
-      const { parsed, out } = await chatJson<FlashDeckGenJsonT>(
-        c.env,
-        'flashcardsGen',
-        {
-          system,
-          messages: [{ role: 'user', content: `Generate ${body.n} flashcards on "${body.topic}".` }],
-          temperature: 0.5,
-          maxTokens: 4096,
-        },
-        (raw) => FlashDeckGenJson.parse(raw),
-      );
-      c.header('X-Model-Used', out.model);
+      const result = await generateDeckBatch({
+        env: c.env,
+        topic: body.topic,
+        level: body.level,
+        totalN: body.n,
+        language: body.language,
+        sourceText: body.sourceText,
+        difficulty: body.difficulty,
+        route: 'flashcardsGen',
+      });
+      // No cards at all → upstream failed for every batch. Surface a
+      // friendly error so the UI can show "Retry" instead of an empty deck.
+      if (result.cards.length === 0) {
+        return c.json(
+          {
+            code: ErrorCode.UpstreamUnavailable,
+            message: 'AI is busy right now. Please retry in a moment.',
+          },
+          503,
+        );
+      }
+      // Pick a representative provider/model — the first batch that succeeded.
+      const model = result.models[0] ?? 'unknown';
+      const provider = result.providers[0] ?? 'openrouter';
+      c.header('X-Model-Used', model);
       const resp: FlashDeckGenResponseT = {
-        title: parsed.title,
-        cards: parsed.cards,
-        provider: out.provider,
-        model: out.model,
-        cached: !!out.cached,
+        title: result.title,
+        cards: result.cards,
+        provider,
+        model,
+        cached: result.cached,
       };
-      return c.json(resp);
+      // Include a flag for the UI so partial decks can show "we got N of M".
+      return c.json({ ...resp, partial: result.partial, requested: body.n } as typeof resp & {
+        partial?: boolean;
+        requested?: number;
+      });
     } catch (e) {
       const ce = cascadeError(c, e);
       if (ce) return ce;
@@ -312,7 +468,7 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
 
   /** Add more AI-generated cards to an existing deck. The body must
    *  include `topic` (the deck's topic — we don't trust the client to
-   *  override it). Excludes existing fronts. */
+   *  override it). Excludes existing fronts. Batched like /generate. */
   .post('/api/flashcards/decks/:id/cards/more', requireAuth, async (c) => {
     try {
       const rl = await rateLimit(c, 'flashcardsAddMore');
@@ -330,29 +486,27 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
       const existingFronts = new Set(existing.map((r) => r.front.trim().toLowerCase()));
       for (const f of body.excludeFronts ?? []) existingFronts.add(f.trim().toLowerCase());
 
-      const system = FLASHCARD_GEN_PROMPT(
-        body.topic,
-        body.level,
-        body.n,
-        body.language,
-        body.sourceText,
-        body.difficulty,
-      );
-      const { parsed, out } = await chatJson<FlashDeckGenJsonT>(
-        c.env,
-        'flashcardsAddMore',
-        {
-          system,
-          messages: [{ role: 'user', content: `Generate ${body.n} more flashcards on "${body.topic}".` }],
-          temperature: 0.6,
-          maxTokens: 4096,
-        },
-        (raw) => FlashDeckGenJson.parse(raw),
-      );
-      c.header('X-Model-Used', out.model);
+      const result = await generateDeckBatch({
+        env: c.env,
+        topic: body.topic,
+        level: body.level,
+        totalN: body.n,
+        language: body.language,
+        sourceText: body.sourceText,
+        difficulty: body.difficulty,
+        route: 'flashcardsAddMore',
+        excludeFronts: [...existingFronts],
+        userPrompt: `Generate ${body.n} more flashcards on "${body.topic}".`,
+      });
 
-      // De-dupe against existing fronts.
-      const fresh = parsed.cards.filter((card) => !existingFronts.has(card.front.trim().toLowerCase()));
+      const model = result.models[0] ?? 'unknown';
+      const provider = result.providers[0] ?? 'openrouter';
+      c.header('X-Model-Used', model);
+
+      // De-dupe against existing fronts (the batcher already de-duped within
+      // its own excludeFronts list — existingFronts — so this is just a
+      // belt-and-braces guard).
+      const fresh = result.cards.filter((card) => !existingFronts.has(card.front.trim().toLowerCase()));
       const initial = initialSrs();
       let inserted = 0;
       if (fresh.length > 0) {
@@ -366,13 +520,29 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
             explanation: card.explanation?.trim() || null,
             tags: JSON.stringify(card.tags ?? []),
             difficulty: card.difficulty ?? 'easy',
-            aiMeta: JSON.stringify({ provider: out.provider, model: out.model, generatedAt: Date.now() }),
+            aiMeta: JSON.stringify({ provider, model, generatedAt: Date.now() }),
             srsState: initial,
           })),
         );
         inserted = fresh.length;
       }
-      return c.json({ addedCount: inserted, generated: parsed.cards.length, provider: out.provider, model: out.model });
+      // Zero cards returned AND all batches failed → upstream unavailable.
+      if (result.cards.length === 0) {
+        return c.json(
+          {
+            code: ErrorCode.UpstreamUnavailable,
+            message: 'AI is busy right now. Please retry in a moment.',
+          },
+          503,
+        );
+      }
+      return c.json({
+        addedCount: inserted,
+        generated: result.cards.length,
+        provider,
+        model,
+        partial: result.partial,
+      });
     } catch (e) {
       const ce = cascadeError(c, e);
       if (ce) return ce;

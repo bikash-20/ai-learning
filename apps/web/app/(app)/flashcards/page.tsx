@@ -526,7 +526,7 @@ const AiDeckTab = ({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
   const [difficulty, setDifficulty] = useState<'easy' | 'hard'>('easy');
   const [sourceText, setSourceText] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [preview, setPreview] = useState<FlashDeckGenResponseT | null>(null);
+  const [preview, setPreview] = useState<(FlashDeckGenResponseT & { partial?: boolean; requested?: number }) | null>(null);
   const [cards, setCards] = useState<DraftCard[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -552,7 +552,20 @@ const AiDeckTab = ({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
       setPreview(res);
       setCards(res.cards);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Generate failed');
+      // Map server-classified failures to friendly copy + leave the error
+      // visible so the user can decide to Retry.
+      const code = (e as { code?: string }).code;
+      const friendly =
+        code === 'UPSTREAM_UNAVAILABLE' || code === 'AI_INVALID'
+          ? 'AI is busy right now — we couldn\'t generate flashcards. Please try again in a moment.'
+          : code === 'UNAUTHORIZED'
+            ? 'Please sign in again to continue.'
+            : code === 'RATE_LIMITED'
+              ? 'You\'re generating decks quickly. Wait a moment, then retry.'
+              : e instanceof Error
+                ? e.message
+                : 'Generate failed';
+      setError(friendly);
     } finally {
       setGenerating(false);
     }
@@ -741,11 +754,27 @@ const AiDeckTab = ({ onDone, onCancel }: { onDone: () => void; onCancel: () => v
             </LoadingState>
           </div>
         )}
-        {error && !generating && <ErrorState detail={error} />}
+        {error && !generating && (
+          <ErrorState
+            detail={error}
+            onRetry={() => void doGenerate()}
+            retryLabel="Try again"
+          />
+        )}
       </GlassCard>
 
       {cards.length > 0 && (
         <section className="space-y-3">
+          {preview?.partial && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="glass rounded-glass border border-warn/40 p-3 text-sm text-warn"
+            >
+              We got {cards.length} of {preview.requested ?? cards.length} cards —
+              some batches didn't make it. Save what you have, then add more.
+            </div>
+          )}
           <header className="flex items-center justify-between">
             <h2 className="font-display text-sm uppercase tracking-display text-muted">
               Preview · {cards.length} cards

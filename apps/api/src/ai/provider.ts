@@ -10,6 +10,7 @@ import {
   AllUpstreamError,
   UpstreamAuthError,
   JsonCascadeError,
+  CASCADE_BUDGET_MS,
   type CascadeResult,
 } from './cascade';
 
@@ -78,11 +79,16 @@ export const myChat = async (
   env: Env,
   route: string,
   input: ChatInput,
-  opts: { kind?: CacheKind; authoritative?: boolean } = {},
+  opts: { kind?: CacheKind; authoritative?: boolean; budgetMs?: number } = {},
 ): Promise<ChatOutput> => {
   const kind: CacheKind = opts.kind ?? 'text';
   const start = Date.now();
   const key = await keyFor(route, kind, input);
+  // Overall cascade budget — Workers AI + OpenRouter combined. Without this
+  // a stuck free model can burn 12s × N attempts and the user sees "No
+  // connection" before any reply lands.
+  const budgetMs = opts.budgetMs ?? CASCADE_BUDGET_MS;
+  const deadlineMs = start + budgetMs;
 
   // 1) Cache lookup.
   try {
@@ -106,7 +112,7 @@ export const myChat = async (
 
   // 2) Workers AI primary tier.
   try {
-    const w = await workersCascade(env, { ...input, route });
+    const w = await workersCascade(env, { ...input, route, deadlineMs });
     const out: ChatOutput = { ...w, cached: false };
     trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 0 });
     // Cache best-effort.
@@ -122,7 +128,7 @@ export const myChat = async (
   }
 
   // 3) OpenRouter cascade.
-  const fallback = await openRouterCascade(env, { ...input, route });
+  const fallback = await openRouterCascade(env, { ...input, route, deadlineMs });
   const out: ChatOutput = { ...fallback, cached: false };
   trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 1 });
   await cachePut(env, key, kind, {
@@ -151,10 +157,17 @@ export const chatJson = async <T>(
   route: string,
   input: ChatInput,
   parse: (raw: unknown) => T,
+  opts: { budgetMs?: number } = {},
 ): Promise<{ parsed: T; out: ChatOutput }> => {
   const kind: CacheKind = 'json';
   const start = Date.now();
   const key = await keyFor(route, kind, input);
+  // JSON cascade retries the same model at temperature 0 — needs a tighter
+  // per-call budget than text. Use 22s total (one Workers try + one OpenRouter
+  // try + retries). Callers (e.g. deck batcher) can pass a smaller budget so
+  // one request's worth of batches fits within a shared envelope.
+  const budgetMs = opts.budgetMs ?? CASCADE_BUDGET_MS;
+  const deadlineMs = start + budgetMs;
 
   const tryParse = (txt: string): T | null => {
     try {
@@ -187,7 +200,7 @@ export const chatJson = async <T>(
 
   // 2) Workers AI primary.
   try {
-    const w = await workersCascade(env, { ...input, route });
+    const w = await workersCascade(env, { ...input, route, deadlineMs });
     const parsed = tryParse(w.text);
     if (parsed !== null) {
       const out: ChatOutput = { ...w, cached: false };
@@ -205,7 +218,7 @@ export const chatJson = async <T>(
   // 3) OpenRouter JSON cascade.
   const { parsed, result } = await openRouterCascadeJson(
     env,
-    { ...input, temperature: input.temperature ?? 0.4, route },
+    { ...input, temperature: input.temperature ?? 0.4, route, deadlineMs },
     parse,
   );
   const out: ChatOutput = {

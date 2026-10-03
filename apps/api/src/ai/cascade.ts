@@ -19,11 +19,24 @@ export type CascadeInput = {
   temperature?: number;
   /** Used in structured logs so `wrangler tail` shows which route asked for it. */
   route: string;
+  /** Optional absolute deadline (ms since epoch). When set, each attempt
+   *  aborts if `Date.now() >= deadlineMs` so the whole cascade can't exceed
+   *  the budget even with N models. Defaults to "no budget" (only per-call
+   *  timeout applies). */
+  deadlineMs?: number;
 };
 
 const BREAKER_TTL_MS = 60_000;
-const REQ_TIMEOUT_MS = 30_000;
-const WORKERS_TIMEOUT_MS = 15_000;
+/** Per-call HTTP timeout for OpenRouter. 12s — long enough for free models,
+ *  short enough that we have budget for the next model in the cascade. */
+const REQ_TIMEOUT_MS = 12_000;
+/** Per-call timeout for one Workers AI model. Workers models can hang on cold
+ *  start; 12s gives a cold-start budget while keeping the cascade under 25s. */
+const WORKERS_TIMEOUT_MS = 12_000;
+/** Overall cascade budget (Workers + OpenRouter combined). Routes set this
+ *  via `withDeadline` so a misbehaving upstream can never make a single
+ *  request hang past the user's tolerance. 22s = 12s Workers + 10s headroom. */
+export const CASCADE_BUDGET_MS = 22_000;
 
 /**
  * Short-lived circuit breaker. A model that fails within the last 60s is
@@ -100,7 +113,28 @@ const tryModel = async (
   input: CascadeInput,
 ): Promise<AttemptOutcome> => {
   const start = Date.now();
+  // Skip the call entirely if the cascade deadline is gone — no point
+  // starting a new model fetch when we can't read its response in time.
+  if (input.deadlineMs !== undefined && Date.now() >= input.deadlineMs) {
+    return {
+      type: 'transport_error',
+      reason: 'deadline_exceeded',
+      latencyMs: 0,
+      aggregateCause: 'upstream',
+    };
+  }
   try {
+    // Compose the per-call timeout with the cascade deadline so the fetch
+    // aborts as soon as either triggers. Falls back to just the per-call
+    // timeout when no deadline was set.
+    const timeoutSignal = AbortSignal.timeout(REQ_TIMEOUT_MS);
+    const signal =
+      input.deadlineMs !== undefined
+        ? AbortSignal.any([
+            timeoutSignal,
+            AbortSignal.timeout(Math.max(0, input.deadlineMs - Date.now())),
+          ])
+        : timeoutSignal;
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -118,7 +152,7 @@ const tryModel = async (
         max_tokens: input.maxTokens ?? 1024,
         temperature: input.temperature ?? 0.4,
       }),
-      signal: AbortSignal.timeout(REQ_TIMEOUT_MS),
+      signal,
     });
 
     const latencyMs = Date.now() - start;
@@ -222,14 +256,15 @@ const tryModel = async (
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const isTimeout = msg.toLowerCase().includes('timeout') || msg.toLowerCase().includes('aborted');
+    const isDeadline = input.deadlineMs !== undefined && Date.now() >= input.deadlineMs;
     const latencyMs = Date.now() - start;
     console.warn('cascade_attempt', {
       route: input.route, model, latencyMs,
-      outcome: isTimeout ? 'timeout' : 'exception', error: msg,
+      outcome: isDeadline ? 'deadline_exceeded' : isTimeout ? 'timeout' : 'exception', error: msg,
     });
     return {
       type: 'transport_error',
-      reason: isTimeout ? 'timeout' : `exception:${msg.slice(0, 80)}`,
+      reason: isDeadline ? 'deadline_exceeded' : isTimeout ? 'timeout' : `exception:${msg.slice(0, 80)}`,
       latencyMs,
       aggregateCause: 'upstream',
     };
@@ -437,6 +472,16 @@ const callWorkersModel = async (
   input: CascadeInput,
 ): Promise<WorkersAttempt> => {
   const start = Date.now();
+  // Skip the call entirely if the cascade deadline is gone — no point
+  // starting a new model invocation when we can't read its response in time.
+  if (input.deadlineMs !== undefined && Date.now() >= input.deadlineMs) {
+    return { type: 'transport_error', reason: 'deadline_exceeded', latencyMs: 0 };
+  }
+  // Build a per-call deadline so Promise.race aborts the AI.run even if the
+  // upstream never resolves.
+  const perCallMs = input.deadlineMs !== undefined
+    ? Math.min(WORKERS_TIMEOUT_MS, Math.max(0, input.deadlineMs - Date.now()))
+    : WORKERS_TIMEOUT_MS;
   try {
     const res = (await Promise.race([
       env.AI.run(model as never, {
@@ -445,7 +490,7 @@ const callWorkersModel = async (
         temperature: input.temperature ?? 0.4,
       } as never),
       new Promise((_resolve, reject) => {
-        setTimeout(() => reject(new Error('workers_timeout')), WORKERS_TIMEOUT_MS);
+        setTimeout(() => reject(new Error('workers_timeout')), perCallMs);
       }),
     ])) as { response?: string; usage?: { tokens?: number } };
     const latencyMs = Date.now() - start;
@@ -468,13 +513,14 @@ const callWorkersModel = async (
     const msg = e instanceof Error ? e.message : String(e);
     const latencyMs = Date.now() - start;
     const isTimeout = msg.toLowerCase().includes('timeout');
+    const isDeadline = input.deadlineMs !== undefined && Date.now() >= input.deadlineMs;
     console.warn('workers_ai_attempt', {
       route: input.route, model, latencyMs,
-      outcome: isTimeout ? 'timeout' : 'exception', error: msg.slice(0, 120),
+      outcome: isDeadline ? 'deadline_exceeded' : isTimeout ? 'timeout' : 'exception', error: msg.slice(0, 120),
     });
     return {
       type: 'transport_error',
-      reason: isTimeout ? 'timeout' : `exception:${msg.slice(0, 80)}`,
+      reason: isDeadline ? 'deadline_exceeded' : isTimeout ? 'timeout' : `exception:${msg.slice(0, 80)}`,
       latencyMs,
     };
   }

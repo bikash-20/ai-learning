@@ -50,10 +50,10 @@ export const listDecks = async (): Promise<FlashDeckT[]> => {
   return (await res.json()) as FlashDeckT[];
 };
 
-export const generateDeck = async (req: FlashDeckGenRequestT): Promise<FlashDeckGenResponseT> => {
+export const generateDeck = async (req: FlashDeckGenRequestT): Promise<FlashDeckGenResponseT & { partial?: boolean; requested?: number }> => {
   const res = await fetch(`${API}/api/flashcards/decks/generate`, authed({ method: 'POST', body: JSON.stringify(req) }));
   await throwIfNotOk(res, 'generate deck');
-  return (await res.json()) as FlashDeckGenResponseT;
+  return (await res.json()) as FlashDeckGenResponseT & { partial?: boolean; requested?: number };
 };
 
 export const saveDeck = async (args: {
@@ -72,10 +72,10 @@ export const saveDeck = async (args: {
 export const addMoreCards = async (
   deckId: string,
   req: FlashDeckAddMoreRequestT,
-): Promise<{ addedCount: number; generated: number; provider: string; model: string }> => {
+): Promise<{ addedCount: number; generated: number; provider: string; model: string; partial?: boolean }> => {
   const res = await fetch(`${API}/api/flashcards/decks/${encodeURIComponent(deckId)}/cards/more`, authed({ method: 'POST', body: JSON.stringify(req) }));
   await throwIfNotOk(res, 'add more cards');
-  return (await res.json()) as { addedCount: number; generated: number; provider: string; model: string };
+  return (await res.json()) as { addedCount: number; generated: number; provider: string; model: string; partial?: boolean };
 };
 
 export const renameDeck = async (deckId: string, patch: FlashDeckPatchT): Promise<void> => {

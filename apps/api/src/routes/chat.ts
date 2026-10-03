@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import type { Env } from '../env';
 import { requireAuth } from '../lib/requireAuth';
 import { rateLimit } from '../lib/ratelimit';
-import { withCors } from '../lib/cors';
 import { myChat } from '../ai/provider';
 import { AllUpstreamError, UpstreamAuthError } from '../ai/cascade';
 import { SYSTEM_STEM } from '../ai/prompt';
