@@ -318,4 +318,58 @@ export const Progress = z.object({
   recent: z.array(ProgressRecent),
 });
 export type ProgressT = z.infer<typeof Progress>;
+
+// ---------- Flashcards (SRS) ----------
+export const SrsState = z.object({
+  intervalDays: z.number(),
+  ease: z.number(),
+  /** ms epoch — when the card is due next. */
+  dueAt: z.number(),
+});
+export type SrsStateT = z.infer<typeof SrsState>;
+
+export const FlashCard = z.object({
+  id: z.string().uuid(),
+  front: z.string().min(1),
+  back: z.string().min(1),
+  srsState: SrsState,
+});
+export type FlashCardT = z.infer<typeof FlashCard>;
+
+export const FlashDeck = z.object({
+  id: z.string().uuid(),
+  title: z.string().min(1),
+  topic: z.string().min(1),
+  source: z.enum(['manual', 'ai']),
+  cardCount: z.number().int().nonnegative(),
+  /** Number of cards currently due (now >= dueAt). Computed by the API. */
+  dueCount: z.number().int().nonnegative(),
+  createdAt: z.number(),
+});
+export type FlashDeckT = z.infer<typeof FlashDeck>;
+
+export const FlashDeckCreate = z.object({
+  title: z.string().min(1).max(80),
+  topic: z.string().min(1).max(80),
+  cards: z.array(z.object({
+    front: z.string().min(1).max(200),
+    back: z.string().min(1).max(400),
+  })).min(1).max(50),
+});
+export type FlashDeckCreateT = z.infer<typeof FlashDeckCreate>;
+
+export const FlashReview = z.object({
+  /** 0=Again, 1=Hard, 2=Good, 3=Easy */
+  grade: z.number().int().min(0).max(3),
+});
+export type FlashReviewT = z.infer<typeof FlashReview>;
+
+export const FlashReviewResult = z.object({
+  card: FlashCard,
+  xpDelta: z.number().int(),
+});
+export type FlashReviewResultT = z.infer<typeof FlashReviewResult>;
+
+export const XpTotal = z.object({ xp: z.number().int().nonnegative() });
+export type XpTotalT = z.infer<typeof XpTotal>;
 export type ExamTemplate = z.infer<typeof ExamTemplate>;

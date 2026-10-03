@@ -8,6 +8,8 @@ const BUCKETS = {
   explain: { limit: 100, windowMs: 24 * 60 * 60_000 }, // 100/day (used inside /api/quiz/attempt)
   quizGen: { limit: 20, windowMs: 60 * 60_000 },       // 20/hour
   aiExplain: { limit: 50, windowMs: 60 * 60_000 },     // 50/hour (per-check /api/quiz/explain)
+  flashcardsGen: { limit: 10, windowMs: 60 * 60_000 }, // 10/hour (create deck)
+  flashcardsReview: { limit: 200, windowMs: 60 * 60_000 }, // 200/hour (review cards)
 } as const;
 
 export const rateLimit = async (c: Context, route: keyof typeof BUCKETS) => {
