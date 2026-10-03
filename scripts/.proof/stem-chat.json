@@ -1,0 +1,212 @@
+{
+  "startedAt": "2026-10-03T18:47:36.977Z",
+  "steps": [
+    {
+      "step": "chat bundle inspection",
+      "chatBundle": "page-4b7fc8b156b893c0.js",
+      "newIdentifiers": [
+        "General",
+        "Code",
+        "Math",
+        "Theory",
+        "Explain",
+        "Explain bubble sort",
+        "time complexity of a hash table",
+        "recursive Fibonacci",
+        "Explain recursion",
+        "Pythagorean identity",
+        "History",
+        "New chat",
+        "Rename",
+        "Delete",
+        "No conversations yet",
+        "Ask anything",
+        "Stop",
+        "Message",
+        "Ask anything CS, math, or code",
+        "/api/chat/conversations",
+        "prose-quiet",
+        "flex flex-1 flex-col gap-3 overflow-hidden p-3"
+      ],
+      "missing": [],
+      "legacyIdentifiers": []
+    },
+    {
+      "step": "GET /api/chat/conversations (no auth)",
+      "status": 401,
+      "headers": {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+        "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+        "access-control-max-age": "600",
+        "alt-svc": "h3=\":443\"; ma=86400",
+        "cf-ray": "a44e1dce6f14659b-DAC",
+        "connection": "keep-alive",
+        "content-length": "52",
+        "content-type": "application/json",
+        "date": "Sat, 03 Oct 2026 18:47:37 GMT",
+        "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+        "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=jvm0rE%2BkJIdI4%2BVlGQRrJfawIs2hkmCAjlM9tj942%2B392p0263eYVt9KgU2asuW0XDOmGbP9nOVDTUFCWZDrBWlt6a4baT9lH%2BpvHdvq5jiwPOXN3ZL4CfFYvt1KMQg7AsYL3c%2BP1vdbfGtIfOGkkvVS0ps9MQ7yusZp3kW5zIA%3D\"}]}",
+        "server": "cloudflare",
+        "vary": "Origin"
+      },
+      "body": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+    },
+    {
+      "step": "GET /api/health/models",
+      "workersHealthy": 6,
+      "workersTotal": 6,
+      "openrouter429": 6,
+      "openrouterTotal": 6
+    },
+    {
+      "step": "playwright /explore (no auth)",
+      "visibleText": "QUANTARA\nDark\n\nFOUNDER & CEO\n\nLearn the universe of knowledge.\n\nAn AI tutor for CS, math, physics, and code.\n\nStreaming answers to CS, math, and code questions.\nFlashcards with spaced repetition so concepts stick.\nTimed mini-mocks across every STEM subject.\nSIGN IN\n\nUse your Google account or get a one-time email link.\n\nContinue with Google\nOR\nSend magic link\n\nFOUNDER & CEO\n\nBikash Talukder\n\nCS & AI Engineer\n\n© 2026 Quantara · Privacy · Terms",
+      "hasNewTagline": true,
+      "hasOldTagline": false,
+      "networkRequests": [
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=YqcEj2Zhl2%2BjL%2Bso2fkOM%2Faba35OJ5Awoy3pvf%2FvOapeITAy8r5Otuv3RSp23ZnsPiH14lG8th%2FtlPB%2FdGS%2Fh8vULIRn582iMFiZUItoPQrnckOgCxb5JOvpfnkxdH5H3yM0tuaVs8QHHLdmwqQ%2BPrf1UKsKBscXBNyh5TJ5MyU%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:47:41 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1de65994b24d-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=A%2FDbzvXLcxjWavB8O3X1k5cW9i1xYpHOe10LDXQsiNla6na2gjVdJFfDJfpTJr7mNJ4ngEPLeaizqcEwj9N2An%2BXU7PFI36G0iU2UZt52yNCSXnJkUpU6JjcI56IMhs29iAwxKhZYWtvs7rmtkOeF6H5x%2B1IxivEySEi4BvSl1U%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:47:41 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1de699c2b24d-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=ILL8RkBRNvqrBmtJowGzFYYWi7A0foeV92xqwDLCyPOwVH3CToBxTzpB%2FAa24Nv%2BSB%2Fa%2Fo%2Bi7Um9ZQmcBFaez99LhY%2FnOjietelcreOEO9Inn0zvyHiGItVSRrVzVxnlR85BdTeXyVVAwyZOrQP52qEqn9mMT%2F59vs%2BVs4Ac3Fo%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "server-timing": "cfExtPri",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:47:42 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "priority": "u=1,i",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1dec8ccadc25-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=mkz6GTzRSS%2Ben32kznoptyNGz%2B6oRRMv4WP4DQMFkZaZLZFBJue9qvQHdAkBGNLAdc9Ecblv2pwnwACbhTDTWohI2a7O45PqB0e6492M6KchDOdpdOtjQLT2Qlyei79yoRzNZK4kk3KeKlZxykMLAmRZedJPomEtMsmg5ZCzTTc%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "server-timing": "cfExtPri",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:47:44 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "priority": "u=1,i",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1df6791bdc25-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=Ca39sLpAr%2F%2FxgT2Q4LSaOMk6GvTfYVoLNYLF6gKA82%2BLmmroiC%2FvcnaU2gakpGMuvwBv%2BrlsPWHEdQgYUvFUvFBjUfRTWzELtHxe28iHHimXJ3zepTx33UsgkwBy0NtuD6sPktbTpyK2ZWqmA2LKxUTkpXjp5DH7t27S5am7YR0%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "server-timing": "cfExtPri",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:47:44 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "priority": "u=1,i",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1df6992ddc25-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=7rnIfP6rnqQFPVqP6ExzK99%2FzdzWlZ1ipqYEYulb648txnSPslUsiS7%2Fo30iQMxn%2FKjXojCKCMfHG05%2Fqrc3754ImbUqbdhLHaYM0hzeBkHmuy6l82Um92BrVprahYOw7Rfj2WlH5EcA6N1VFbSk0XSkUkQow14c2LMw36sccTw%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "server-timing": "cfExtPri",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:47:45 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "priority": "u=1,i",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1dfe7c16dc25-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        }
+      ]
+    }
+  ]
+}

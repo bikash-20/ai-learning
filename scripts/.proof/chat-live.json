@@ -1,0 +1,130 @@
+{
+  "startedAt": "2026-10-03T18:45:13.149Z",
+  "steps": [
+    {
+      "step": "bundle inspection",
+      "chatBundle": "page-363af6a854dc5f86.js",
+      "newIdentifiers": [
+        "UPSTREAM_AUTH",
+        "UPSTREAM_UNAVAILABLE",
+        "AI_INVALID_OUTPUT",
+        "RATE_LIMITED",
+        "UNAUTHORIZED",
+        "upstreamMessage",
+        "The tutor is busy",
+        "auth",
+        "rate_limited",
+        "network"
+      ],
+      "missingNew": [
+        "cat === 'busy'"
+      ],
+      "oldIdentifiers": [
+        "No connection"
+      ]
+    },
+    {
+      "step": "POST /api/chat (no auth)",
+      "status": 401,
+      "headers": {
+        "access-control-allow-credentials": "true",
+        "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+        "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+        "access-control-max-age": "600",
+        "alt-svc": "h3=\":443\"; ma=86400",
+        "cf-ray": "a44e1a4ffc145de8-DAC",
+        "connection": "keep-alive",
+        "content-length": "52",
+        "content-type": "application/json",
+        "date": "Sat, 03 Oct 2026 18:45:15 GMT",
+        "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+        "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=aAbk06EEwDYBWavTwOj2%2Bl3AZPhq44JvZ0y%2BONuLqaxxE1k7%2BEvNf3P4m39SQyq3CTdl2qenYJt1AQ1XQkMsp8mq1LDicXJ9Gl37E4Eji%2F6rtefkBhQp3UpQ71xTL1%2FAW5YUa96vF8gWmKgX%2Bqvw9jMiWNqK4w7Hm7o8fZvIdIY%3D\"}]}",
+        "server": "cloudflare",
+        "vary": "Origin"
+      },
+      "body": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Sign in required\"}"
+    },
+    {
+      "step": "GET /api/health/models",
+      "workersHealthy": 6,
+      "workersTotal": 6,
+      "openrouter429": 6,
+      "openrouterTotal": 6
+    },
+    {
+      "step": "playwright /chat (no auth)",
+      "visibleText": "QUANTARA\nDark\n\nFOUNDER & CEO\n\nLearn the universe of knowledge.\n\nAI-powered English practice — IELTS, grammar, vocabulary.\n\nAdaptive AI tutor that meets you where you are.\nSpaced-repetition so words and grammar actually stick.\nTimed mini-mocks that feel like the real exam.\nSIGN IN\n\nUse your Google account or get a one-time email link.\n\nContinue with Google\nOR\nSend magic link\n\nFOUNDER & CEO\n\nBikash Talukder\n\nCS & AI Engineer\n\n© 2026 Quantara · Privacy · Terms",
+      "networkRequests": [
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=hqUc1G%2F5NWVpzZQ2ZmnVj9XkTNrI2RgcQ%2F8dMbqqH3QMwxWhv5G3g73JfSYZ3g1wmlpK%2FeOwOSL8sDEIsLsmS87qX9Drhecx6tJ81wISnDwdrVCt6KZQYJ0fZE87qh%2FW1PLPpyg9uY6c3wJwBH8M5zUkBViSljTv8h1H41kOe38%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:45:18 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1a668927c70f-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=qZevwNPbmuKlSgsJUPZlfN4PjEyRsd%2B2XvY%2B%2FUNvsT%2BF6xtHqnOvogyoD8vuxbw18SrJUNr7pGfBEWapxSSzyp9b5yL0vhk30g%2FOLn5u7aSntN%2FwCFB3crJVaEkfFaBtdUjlGmfF3yf%2FRvzzvaZ6WAtshCL1WiGURSxWN7tLOg4%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:45:18 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1a66d9f0c70f-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        },
+        {
+          "url": "https://ai-learning-api.bikashtalukder040.workers.dev/api/auth/get-session",
+          "status": 200,
+          "headers": {
+            "access-control-max-age": "600",
+            "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=%2FHH%2B82IVFtjANJpFciXv2BBgrxdeO1HriXJfgpyuuu2BWPLwoanjof7kubZVCYLDPLiVTHjFW5cht7nmiENXTZlVU8o4uMwClut2vm1yjKBDdqhIrywk2Xe3kFg6qmKISuwv2MYdfhBQZuy%2FET8v8BUkNk3WQDeHSyVYhfTt0JU%3D\"}]}",
+            "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "server-timing": "cfExtPri",
+            "alt-svc": "h3=\":443\"; ma=86400",
+            "date": "Sat, 03 Oct 2026 18:45:19 GMT",
+            "content-type": "application/json",
+            "vary": "Origin",
+            "priority": "u=1,i",
+            "access-control-allow-headers": "Content-Type,Authorization,Idempotency-Key",
+            "cache-control": "no-store",
+            "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+            "pragma": "no-cache",
+            "access-control-allow-credentials": "true",
+            "cf-ray": "a44e1a6c9be68c28-DAC",
+            "access-control-allow-origin": "https://web-nine-rho-1j664llz3j.vercel.app",
+            "content-length": "4",
+            "server": "cloudflare"
+          }
+        }
+      ]
+    }
+  ]
+}
