@@ -21,6 +21,21 @@ import { eq } from 'drizzle-orm';
 type Ctx = Context<{ Bindings: Env; Variables: { userId: string } }>;
 
 /**
+ * Convert a Drizzle `mcqBank` row to the client-facing `QuizItem` shape.
+ * The bank row carries extra columns (topic, level, difficulty, tags,
+ * createdAt) that the quiz UI doesn't need, so we trim to the canonical
+ * five fields. The `id` is re-added by the caller after batch-insert so
+ * the items returned to the client reference the freshly minted
+ * `quiz_item.id`, not the bank row's id.
+ */
+const stripBankRow = (row: typeof schema.mcqBank.$inferSelect) => ({
+  prompt: row.prompt,
+  options: row.options,
+  answerIdx: row.answerIdx,
+  explanation: row.explanation,
+});
+
+/**
  * Map every cascade-level failure to a friendly, CORS-stamped JSON response.
  * Returns `null` when the failure isn't cascade-related (let `handleError` deal
  * with it).
@@ -50,6 +65,55 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
       const rl = await rateLimit(c, 'quizGen');
       if (rl) return rl;
       const body = QuizFromTopicRequest.parse(await c.req.json());
+      const db = drizzle(c.env.DB, { schema });
+
+      // ── Hard mode: serve curated bank items only. No AI fallback per
+      //    question (the whole point of "hard" is consistent difficulty).
+      if (body.difficulty === 'hard') {
+        const bankRows = await db
+          .select()
+          .from(schema.mcqBank)
+          .where(eq(schema.mcqBank.difficulty, 'hard'))
+          .all();
+        if (bankRows.length === 0) {
+          return c.json(
+            { code: ErrorCode.NotFound, message: 'Hard bank is empty — please run the seed script.' },
+            503,
+          );
+        }
+        // Shuffle and take n. Real SQL ORDER BY RANDOM() would be faster
+        // but D1 doesn't expose it cleanly — in-memory shuffle on ≤ 100 rows
+        // is fine.
+        const shuffled = [...bankRows].sort(() => Math.random() - 0.5);
+        const picked = shuffled.slice(0, Math.min(body.n, shuffled.length));
+
+        const quizId = crypto.randomUUID();
+        await db.insert(schema.quiz).values({
+          id: quizId,
+          ownerId: c.get('userId'),
+          source: 'manual',
+          topic: body.topic,
+          level: body.level,
+        });
+        const itemIds = picked.map(() => crypto.randomUUID());
+        await db.insert(schema.quizItem).values(
+          picked.map((it, i) => ({
+            id: itemIds[i]!,
+            quizId,
+            prompt: it.prompt,
+            options: it.options,
+            answerIdx: it.answerIdx,
+            explanation: it.explanation,
+          })),
+        );
+        const itemsWithId = picked.map((it, i) => ({ id: itemIds[i]!, ...stripBankRow(it) }));
+        return c.json({ quizId, items: itemsWithId, provider: 'bank', model: 'hard-bank' });
+      }
+
+      // ── Easy mode (default): existing AI cascade. Bank is checked only
+      //    to backfill any topic-tagged items that match. We keep the
+      //    existing behavior so users who liked the free-form generation
+      //    don't notice a change.
       const system = 'You generate CEFR English quiz items. Output JSON only.';
       const { parsed, out } = await chatJson(c.env, 'quizGen', {
         system,
@@ -66,7 +130,6 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
       }
 
       const quizId = crypto.randomUUID();
-      const db = drizzle(c.env.DB, { schema });
       await db.insert(schema.quiz).values({
         id: quizId,
         ownerId: c.get('userId'),

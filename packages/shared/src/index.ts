@@ -84,6 +84,13 @@ export const QuizFromTopicRequest = z.object({
   topic: Topic,
   level: Level,
   n: z.number().int().min(1).max(20).default(5),
+  /** 'easy' (default) keeps the existing AI generation. 'hard' pulls from
+   *  the curated bank only — every item is hand-picked, no obvious
+   *  giveaways, multi-clause reasoning required. */
+  difficulty: z.enum(['easy', 'hard']).default('easy'),
+  /** Optional client-side knob. Currently 'mcq' (default). Reserved for
+   *  future 'cloze' / 'reorder' modes. */
+  mode: z.enum(['mcq']).default('mcq'),
 });
 export type QuizFromTopicRequest = z.infer<typeof QuizFromTopicRequest>;
 

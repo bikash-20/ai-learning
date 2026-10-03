@@ -15,6 +15,15 @@ const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 const LEVELS: Level[] = ['A2', 'B1', 'B2', 'C1'];
 
+/** Per-question timer presets. `0` means no timer. */
+const TIMER_OPTIONS = [
+  { value: 0, label: 'Off' },
+  { value: 30, label: '30s' },
+  { value: 60, label: '60s' },
+  { value: 120, label: '120s' },
+] as const;
+type TimerSec = (typeof TIMER_OPTIONS)[number]['value'];
+
 type State =
   | { kind: 'idle' }
   | { kind: 'generating' }
@@ -27,6 +36,9 @@ type State =
       picks: Record<number, number>;
       /** Per-question: which question has been checked. */
       revealed: Record<number, true>;
+      /** Per-question: timer expiry timestamp (ms epoch). Undefined when
+       *  timer is off or question was checked / skipped. */
+      timerDeadlineAt: Record<number, number>;
       /** Per-question AI explain (Phase 1): cached server-side. */
       aiExplain: Record<number, { text: string; model: string; provider: string } | undefined>;
       /** Per-question AI explain loading state. */
@@ -73,7 +85,7 @@ const friendlyFromResponse = async (res: Response): Promise<ErrInfo> => {
     };
   }
   if (serverCode === 'AI_INVALID_OUTPUT' || serverMsg) {
-    return { title: 'We couldn\u2019t generate a quiz', detail: serverMsg ?? 'Please try again with a different topic.', retryable: true };
+    return { title: 'We couldn’t generate a quiz', detail: serverMsg ?? 'Please try again with a different topic.', retryable: true };
   }
   return { title: 'Something went wrong', detail: `Request failed (${res.status}). Please try again.`, retryable: true };
 };
@@ -89,8 +101,11 @@ export default function QuizPage() {
   const [topic, setTopic] = useState('IELTS grammar');
   const [level, setLevel] = useState<Level>('B2');
   const [n, setN] = useState(5);
+  const [difficulty, setDifficulty] = useState<'easy' | 'hard'>('easy');
+  const [timerSec, setTimerSec] = useState<TimerSec>(0);
   const [s, setState] = useState<State>({ kind: 'idle' });
   const [err, setErr] = useState<ErrInfo | null>(null);
+  const [now, setNow] = useState<number>(0);
   const startedAtRef = useRef<number>(0);
 
   // Re-focus Check / Next button after reveal so keyboard learners can keep going.
@@ -104,6 +119,35 @@ export default function QuizPage() {
     }
   }, [s]);
 
+  // ── Per-question countdown ticker ─────────────────────────────────────
+  // Drives the visible seconds-remaining chip + auto-reveal-as-wrong when
+  // the timer hits zero. Tick is 250ms for smooth visual; cheap.
+  useEffect(() => {
+    if (s.kind !== 'playing') return;
+    if (!timerSec) return;
+    if (s.revealed[s.idx]) return;
+    const dl = s.timerDeadlineAt[s.idx];
+    if (!dl) return;
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t >= dl) {
+        clearInterval(id);
+        // Auto-reveal as wrong (no pick = "-1" → never equal to answerIdx).
+        setState((cur) => {
+          if (cur.kind !== 'playing') return cur;
+          if (cur.revealed[cur.idx]) return cur;
+          return {
+            ...cur,
+            revealed: { ...cur.revealed, [cur.idx]: true },
+            picks: { ...cur.picks, [cur.idx]: cur.picks[cur.idx] ?? -1 },
+          };
+        });
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [s, timerSec]);
+
   const start = async () => {
     setErr(null);
     setState({ kind: 'generating' });
@@ -112,7 +156,7 @@ export default function QuizPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic, level, n }),
+        body: JSON.stringify({ topic, level, n, difficulty, mode: 'mcq' }),
       });
       if (!res.ok) {
         setErr(await friendlyFromResponse(res));
@@ -122,6 +166,10 @@ export default function QuizPage() {
       const j = (await res.json()) as { quizId: string; items: QuizItem[] };
       const now = Date.now();
       startedAtRef.current = now;
+      // Pre-arm the first question's timer deadline (others get armed on
+      // arrival at idx in `goNext`). This way the user sees the countdown
+      // immediately after the quiz loads.
+      const firstDeadline = timerSec > 0 ? now + timerSec * 1000 : 0;
       setState({
         kind: 'playing',
         quizId: j.quizId,
@@ -129,6 +177,7 @@ export default function QuizPage() {
         idx: 0,
         picks: {},
         revealed: {},
+        timerDeadlineAt: firstDeadline > 0 ? { 0: firstDeadline } : {},
         aiExplain: {},
         explainPending: {},
         startedAt: now,
@@ -192,7 +241,15 @@ export default function QuizPage() {
 
   const goNext = () => {
     if (s.kind !== 'playing') return;
-    if (s.idx < s.items.length - 1) setState({ ...s, idx: s.idx + 1 });
+    if (s.idx < s.items.length - 1) {
+      const nextIdx = s.idx + 1;
+      const deadline = timerSec > 0 ? Date.now() + timerSec * 1000 : 0;
+      setState({
+        ...s,
+        idx: nextIdx,
+        timerDeadlineAt: deadline > 0 ? { ...s.timerDeadlineAt, [nextIdx]: deadline } : s.timerDeadlineAt,
+      });
+    }
   };
 
   const submit = async () => {
@@ -200,14 +257,24 @@ export default function QuizPage() {
     setErr(null);
     const answers = s.items
       .map((it, i) => ({ itemId: it.id ?? '', picked: s.picks[i] }))
-      .filter((a) => a.picked !== undefined);
-    if (answers.length !== s.items.length) return; // must have checked every question
+      .filter((a) => a.picked !== undefined && a.picked !== -1);
+    // Items where the timer expired and never got an explicit pick still
+    // need to be accounted for. We surface them as picked: -1 which the
+    // server treats as "not answered" → counts as wrong.
+    const allAnswers = s.items.map((it, i) => ({
+      itemId: it.id ?? '',
+      picked: s.picks[i] ?? -1,
+    }));
+    if (answers.length === 0 && allAnswers.every((a) => a.picked === -1)) {
+      // Nothing to submit — bail.
+      return;
+    }
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/quiz/attempt`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quizId: s.quizId, answers }),
+        body: JSON.stringify({ quizId: s.quizId, answers: allAnswers }),
       });
       if (!res.ok) {
         setErr(await friendlyFromResponse(res));
@@ -290,6 +357,69 @@ export default function QuizPage() {
               className="mt-1"
             />
           </label>
+
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted">Difficulty</div>
+            <div className="mt-2 flex gap-2" role="radiogroup" aria-label="Difficulty">
+              {(['easy', 'hard'] as const).map((d) => {
+                const active = difficulty === d;
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setDifficulty(d)}
+                    className={`flex-1 rounded-card border px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] ${
+                      active
+                        ? 'border-accent bg-accent text-[color:var(--primary-fg)] shadow-glow'
+                        : 'border-glass-border bg-glass text-fg hover:border-accent'
+                    }`}
+                    data-testid={`difficulty-${d}`}
+                  >
+                    <div className="font-semibold capitalize">{d === 'easy' ? 'Easy' : 'Hard'}</div>
+                    <div className={`mt-0.5 text-[11px] ${active ? 'opacity-90' : 'text-muted'}`}>
+                      {d === 'easy'
+                        ? 'AI-generated on any topic'
+                        : 'Curated bank · multi-clause reasoning'}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted">Per-question timer</div>
+            <div className="mt-2 flex gap-2" role="radiogroup" aria-label="Timer">
+              {TIMER_OPTIONS.map((opt) => {
+                const active = timerSec === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setTimerSec(opt.value)}
+                    className={`flex-1 rounded-card border px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] ${
+                      active
+                        ? 'border-accent bg-accent text-[color:var(--primary-fg)] shadow-glow'
+                        : 'border-glass-border bg-glass text-fg hover:border-accent'
+                    }`}
+                    data-testid={`timer-${opt.value}`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {timerSec > 0 && (
+              <p className="mt-2 text-[11px] text-muted">
+                If time runs out, the answer is auto-marked wrong and revealed.
+              </p>
+            )}
+          </div>
+
           <Button onClick={start} disabled={s.kind === 'generating'} className="w-full">
             {s.kind === 'generating' ? 'Generating…' : 'Generate quiz'}
           </Button>
@@ -303,10 +433,14 @@ export default function QuizPage() {
     const it = s.items[s.idx]!;
     const picked = s.picks[s.idx];
     const revealed = !!s.revealed[s.idx];
-    const isCorrect = picked === it.answerIdx;
+    const isCorrect = picked !== undefined && picked !== -1 && picked === it.answerIdx;
     const aiText = s.aiExplain[s.idx];
     const aiPending = !!s.explainPending[s.idx];
     const last = s.idx === s.items.length - 1;
+    const deadline = s.timerDeadlineAt[s.idx];
+    const remainingMs = deadline && !revealed ? Math.max(0, deadline - now) : 0;
+    const remainingSec = Math.ceil(remainingMs / 1000);
+    const timerCritical = remainingSec > 0 && remainingSec <= 10;
     return (
       <main className="mx-auto max-w-2xl">
         <PageHeader
@@ -314,7 +448,22 @@ export default function QuizPage() {
           subtitle={`Question ${s.idx + 1} of ${s.items.length}`}
         />
         <GlassCard>
-          <h2 className="font-display text-2xl tracking-display text-fg">{it.prompt}</h2>
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-display text-2xl tracking-display text-fg">{it.prompt}</h2>
+            {deadline && !revealed && (
+              <span
+                aria-live="polite"
+                className={`shrink-0 rounded-full border px-2.5 py-1 font-mono text-xs tabular-nums ${
+                  timerCritical
+                    ? 'border-danger bg-danger/15 text-danger animate-pulse'
+                    : 'border-glass-border bg-glass text-fg'
+                }`}
+                data-testid="timer-chip"
+              >
+                {remainingSec}s
+              </span>
+            )}
+          </div>
           <div className="mt-6 space-y-2" role="radiogroup" aria-label={it.prompt}>
             {it.options.map((opt, i) => {
               const isCorrectOpt = i === it.answerIdx;
@@ -357,7 +506,11 @@ export default function QuizPage() {
             >
               <div className="flex items-center justify-between">
                 <div className={`text-xs uppercase tracking-wide ${isCorrect ? 'text-success' : 'text-danger'}`}>
-                  {isCorrect ? 'Correct' : 'Not quite'}
+                  {picked === -1 || picked === undefined
+                    ? "Time's up"
+                    : isCorrect
+                      ? 'Correct'
+                      : 'Not quite'}
                 </div>
                 {aiText && <ModelChip modelId={aiText.model} />}
               </div>
@@ -392,7 +545,6 @@ export default function QuizPage() {
               ) : last ? (
                 <Button
                   onClick={submit}
-                  disabled={Object.keys(s.revealed).length !== s.items.length}
                   data-testid="see-results-btn"
                 >
                   See results

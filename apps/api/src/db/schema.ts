@@ -177,3 +177,22 @@ export const aiCache = sqliteTable('ai_cache', {
   expiresAt: integer('expires_at').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
+
+// ---------- MCQ bank ----------
+// Authored multiple-choice questions, keyed by topic + CEFR level. The quiz
+// route consults this table before falling back to AI generation. The
+// `topic` column is a short, lowercased slug (e.g. 'conditionals',
+// 'articles', 'prepositions', 'phrasal-verbs', 'vocabulary-ielts') that
+// the /quiz UI can preselect from the chip row.
+export const mcqBank = sqliteTable('mcq_bank', {
+  id: text('id').primaryKey(),
+  topic: text('topic').notNull(),
+  level: text('level').notNull(),
+  difficulty: text('difficulty', { enum: ['easy', 'hard'] }).notNull(),
+  prompt: text('prompt').notNull(),
+  options: text('options', { mode: 'json' }).$type<string[]>().notNull(),
+  answerIdx: integer('answer_idx').notNull(),
+  explanation: text('explanation').notNull(),
+  tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
