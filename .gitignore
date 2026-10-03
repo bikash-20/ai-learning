@@ -38,3 +38,4 @@ Thumbs.db
 # turbo / nx
 .turbo/
 AUDIT.md
+.vercel

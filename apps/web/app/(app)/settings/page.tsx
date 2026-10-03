@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { CheckIcon } from '@/components/ui/icons';
 import { useTheme } from '@/lib/useTheme';
 
 type LoadState = 'loading' | 'ready' | 'saving' | 'saved' | 'error';
@@ -88,8 +89,8 @@ export default function SettingsPage() {
               onChange={(v) => patch({ aiExplain: v })}
               label={prefs?.aiExplain ? 'On' : 'Off'}
             />
-            <span className="text-xs text-muted">
-              {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved ✓' : ''}
+            <span className="inline-flex items-center gap-1 text-xs text-muted">
+              {state === 'saving' ? 'Saving…' : state === 'saved' ? (<><CheckIcon size={12} className="text-success" decorative /> Saved</>) : ''}
             </span>
           </div>
         </div>

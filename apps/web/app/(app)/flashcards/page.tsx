@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useSession } from '@/lib/useSession';
+import { StarIcon } from '@/components/ui/icons';
 import type { FlashCardT, FlashDeckT } from '@quantara/shared';
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -167,7 +168,7 @@ const XpChip = ({ xp }: { xp: number }) => (
     className="inline-flex items-center gap-1.5 rounded-pill border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent"
     aria-label={`Total XP ${xp}`}
   >
-    <span aria-hidden="true">★</span>
+    <StarIcon size={12} decorative />
     {xp.toLocaleString()} XP
   </span>
 );

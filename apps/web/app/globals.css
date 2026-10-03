@@ -138,9 +138,11 @@ body { min-height: 100dvh; overflow-x: hidden; }
 /* ---------- Branded backgrounds (image + token overlay) ---------- */
 /* Both images sit behind a token-driven gradient that gets stronger
    toward the center so text on top stays WCAG AA readable in both
-   modes. The `<picture>` element picks WebP first via image-set on the
-   `bg-img-*` utility classes; the solid-color `bg-img-fallback` is the
-   no-flash paint that goes away once the image loads. */
+   modes. `image-set` lets the browser pick the best WebP variant for
+   the viewport; the plain `url()` declarations above the image-set
+   ones act as the universal JPG fallback for browsers that don't
+   parse image-set (older Safari, very old Edge, etc). The solid
+   `bg-img-fallback` paint covers the time before the WebP decodes. */
 :root {
   /* overlay stops — light mode */
   --bg-overlay-light: linear-gradient(
@@ -189,45 +191,60 @@ body { min-height: 100dvh; overflow-x: hidden; }
   background: var(--surface);
 }
 
-/* The image layer. `image-set` lets the browser pick the best WebP /
-   original JPG for the viewport. Default: mobile WebP. */
+/* The image layer. The first `url()` is the universal JPG fallback for
+   browsers that don't understand image-set. The prefixed + unprefixed
+   image-set declarations below override it on modern browsers. We
+   declare 1x (mobile WebP, ~800w) and 2x (desktop WebP, ~1200w) so the
+   browser picks the right one for the viewport DPR. */
 .bg-img-login {
+  background-image: url('/bg-login.jpg'); /* universal fallback */
+  background-image:
+    -webkit-image-set(
+      url('/img/bg-login-m.webp') 1x,
+      url('/img/bg-login-d.webp') 2x
+    );
   background-image:
     image-set(
-      url('/img/bg-login-m.webp') type('image/webp'),
-      url('/img/bg-login-d.webp') type('image/webp')
+      url('/img/bg-login-m.webp') 1x,
+      url('/img/bg-login-d.webp') 2x
     );
-  background-image: -webkit-image-set(
-    url('/img/bg-login-m.webp') type('image/webp'),
-    url('/img/bg-login-d.webp') type('image/webp')
-  );
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
 .bg-img-explore {
+  background-image: url('/bg-explore.jpg'); /* universal fallback */
+  background-image:
+    -webkit-image-set(
+      url('/img/bg-explore-m.webp') 1x,
+      url('/img/bg-explore-d.webp') 2x
+    );
   background-image:
     image-set(
-      url('/img/bg-explore-m.webp') type('image/webp'),
-      url('/img/bg-explore-d.webp') type('image/webp')
+      url('/img/bg-explore-m.webp') 1x,
+      url('/img/bg-explore-d.webp') 2x
     );
-  background-image: -webkit-image-set(
-    url('/img/bg-explore-m.webp') type('image/webp'),
-    url('/img/bg-explore-d.webp') type('image/webp')
-  );
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  /* The original is 736×414 — small enough that any wide desktop view
+     will stretch it. A subtle blur disguises the upscale without faking
+     detail (no sharpen, no bicubic). */
+  filter: blur(2px);
+}
+@media (min-width: 1024px) {
+  /* Scale up the blur slightly on desktop where the upscale artifact is
+     more visible. The blur reads as intentional atmosphere when paired
+     with the token overlay. */
+  .bg-img-explore {
+    filter: blur(4px);
+  }
 }
 
 /* Token-driven gradient overlay used on top of the image. */
 .bg-overlay-login   { background-image: var(--bg-overlay-login); }
 .bg-overlay-app     { background: var(--bg-overlay-light); }
 .bg-overlay-app-strong { background: var(--bg-overlay-light-strong); }
-
-/* Disabled under prefers-reduced-motion and low-power: a slow
-   background-position drift adds life to the explore shell but is
-   purely decorative. */
 @media (prefers-reduced-motion: no-preference) {
   .bg-drift {
     animation: bg-drift 60s ease-in-out infinite alternate;

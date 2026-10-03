@@ -15,11 +15,12 @@ export const BRAND = {
   signInTagline: 'Practice English with an AI tutor.',
   /** Hero tagline on the sign-in brand panel. */
   heroTagline: 'Learn the universe of knowledge.',
-  /** Three short value points shown on the sign-in brand panel (desktop). */
+  /** Three short value points shown on the sign-in brand panel (desktop).
+   *  `iconId` is resolved to an inline SVG by the consumer. */
   valuePoints: [
-    { icon: '✨', text: 'Adaptive AI tutor that meets you where you are.' },
-    { icon: '🧠', text: 'Spaced-repetition so words and grammar actually stick.' },
-    { icon: '🛰️', text: 'Timed mini-mocks that feel like the real exam.' },
+    { iconId: 'sparkle', text: 'Adaptive AI tutor that meets you where you are.' },
+    { iconId: 'brain',   text: 'Spaced-repetition so words and grammar actually stick.' },
+    { iconId: 'exam',    text: 'Timed mini-mocks that feel like the real exam.' },
   ] as const,
   /** Founder credit used on the home hero, hub, and sign-in footer. */
   founder: {

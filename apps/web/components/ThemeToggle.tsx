@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SunIcon, MoonIcon } from '@/components/ui/icons';
 
 export const ThemeToggle = () => {
   const [dark, setDark] = useState(false);
@@ -20,9 +21,19 @@ export const ThemeToggle = () => {
     <button
       onClick={toggle}
       aria-label="Toggle dark mode"
-      className="ml-1 rounded-pill border border-glass-border bg-glass-bg px-3 py-1 text-xs text-fg hover:border-accent"
+      className="ml-1 inline-flex items-center gap-1.5 rounded-pill border border-glass-border bg-glass-bg px-3 py-1 text-xs text-fg hover:border-accent"
     >
-      {dark ? '☀ Light' : '☾ Dark'}
+      {dark ? (
+        <>
+          <SunIcon size={12} decorative />
+          Light
+        </>
+      ) : (
+        <>
+          <MoonIcon size={12} decorative />
+          Dark
+        </>
+      )}
     </button>
   );
 };

@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { BRAND, todaysTip } from '@/lib/brand';
-import { GRID_TILES, TILE_ACCENT, type HubTile } from '@/lib/hubConfig';
+import { GRID_TILES, ICONS, TILE_ACCENT, type HubTile } from '@/lib/hubConfig';
 import { useSession } from '@/lib/useSession';
 import { useRole } from '@/lib/useRole';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
 import { BrandMark, BrandWordmark, FounderCredit } from '@/components/Brand';
+import { ChatBubbleIcon, SparkleIcon } from '@/components/ui/icons';
 
 type HealthState = 'unknown' | 'live' | 'offline';
 
@@ -76,9 +77,12 @@ const Tile = ({ tile, onChip }: { tile: HubTile; onChip?: (label: string) => voi
         <div className="flex items-center gap-2">
           <span
             aria-hidden="true"
-            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-card border text-base ${accent}`}
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-card border ${accent}`}
           >
-            {tile.icon}
+            {(() => {
+              const Icon = ICONS[tile.iconId];
+              return <Icon size={18} className="text-current" />;
+            })()}
           </span>
           <div className="font-display text-lg tracking-display text-fg">{tile.title}</div>
         </div>
@@ -167,7 +171,7 @@ export default function ExplorePage() {
             on the marquee flow: start a chat session. */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <span aria-hidden="true" className="text-xl">✨</span>
+            <SparkleIcon size={18} className="text-accent" decorative />
             <span className="font-display text-xl tracking-display text-fg">
               Chat with {BRAND.appName}
             </span>
@@ -186,7 +190,7 @@ export default function ExplorePage() {
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button onClick={() => router.push('/chat')} className="flex-1 sm:flex-none">
-              <span aria-hidden="true" className="mr-1">💬</span>
+              <ChatBubbleIcon size={16} className="mr-1.5" decorative />
               Start chatting
             </Button>
           </div>

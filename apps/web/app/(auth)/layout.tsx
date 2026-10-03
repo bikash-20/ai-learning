@@ -4,6 +4,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Bootstrap } from '@/components/Bootstrap';
 import { BrandMark, BrandWordmark, FounderCredit } from '@/components/Brand';
 import { BRAND } from '@/lib/brand';
+import { SparkleIcon, BrainIcon, ExamIcon } from '@/components/ui/icons';
 
 /**
  * Public auth-area layout.
@@ -116,9 +117,11 @@ const BrandPanel = () => (
         >
           <span
             aria-hidden="true"
-            className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-card border border-accent/30 bg-accent/10 text-base"
+            className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-card border border-accent/30 bg-accent/10 text-accent"
           >
-            {vp.icon}
+            {vp.iconId === 'sparkle' && <SparkleIcon size={18} className="text-current" decorative />}
+            {vp.iconId === 'brain' && <BrainIcon size={18} className="text-current" decorative />}
+            {vp.iconId === 'exam' && <ExamIcon size={18} className="text-current" decorative />}
           </span>
           <span className="text-sm leading-snug text-fg">{vp.text}</span>
         </li>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { TAB_TILES } from '@/lib/hubConfig';
+import { ICONS, TAB_TILES } from '@/lib/hubConfig';
 import { useSession } from '@/lib/useSession';
 import { useRole } from '@/lib/useRole';
 
@@ -37,7 +37,10 @@ export const BottomTabBar = () => {
                     active ? 'text-accent' : 'text-muted hover:text-fg'
                   }`}
                 >
-                  <span aria-hidden="true" className="text-base leading-none">{t.icon}</span>
+                  {(() => {
+                    const Icon = ICONS[t.iconId];
+                    return <Icon size={18} decorative className="text-current" />;
+                  })()}
                   <span className="leading-none">{t.title}</span>
                 </Link>
               </li>

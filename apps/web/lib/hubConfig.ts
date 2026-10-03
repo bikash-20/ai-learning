@@ -8,8 +8,8 @@
  *   - id: stable key
  *   - title: shown on the tile and tab bar
  *   - desc: one-line description on the tile (hidden on tab bar)
- *   - icon: emoji shown on the tile + tab. Inline SVG icons are imported
- *     in the consumer (this config stays serializable).
+ *   - iconId: key into ICONS so this config stays serializable + tree-
+ *     shake friendly. Inline SVGs live in `components/ui/icons.tsx`.
  *   - href: where the tile takes you
  *   - tabOrder: index in the mobile bottom tab bar (1-5). Omit to hide.
  *   - accent: tile accent class — uses only CSS tokens, no hex.
@@ -17,7 +17,45 @@
  *   - extras: optional per-tile add-ons (difficulty chips, progress bar, etc.)
  */
 
-import type { ReactNode } from 'react';
+import type { ComponentType } from 'react';
+import {
+  FlashcardsIcon,
+  QuizIcon,
+  PassageIcon,
+  VocabIcon,
+  GrammarIcon,
+  ExamIcon,
+  ProgressIcon,
+  SettingsIcon,
+  AdminIcon,
+  type IconProps,
+} from '@/components/ui/icons';
+
+export type TileIconId =
+  | 'flashcards'
+  | 'quiz'
+  | 'passage'
+  | 'vocab'
+  | 'grammar'
+  | 'exam'
+  | 'progress'
+  | 'settings'
+  | 'admin';
+
+/** Map from a stable id to the icon component. Keeps the config
+ *  serializable so it could move to a CMS later without bundling React
+ *  components. The component is rendered with default props. */
+export const ICONS: Record<TileIconId, ComponentType<IconProps>> = {
+  flashcards: FlashcardsIcon,
+  quiz: QuizIcon,
+  passage: PassageIcon,
+  vocab: VocabIcon,
+  grammar: GrammarIcon,
+  exam: ExamIcon,
+  progress: ProgressIcon,
+  settings: SettingsIcon,
+  admin: AdminIcon,
+};
 
 export type TileExtras =
   | { kind: 'progress'; /** 0-100. Real value comes from real data, see useProgress. */ value: number }
@@ -27,10 +65,11 @@ export type HubTile = {
   id: string;
   title: string;
   desc: string;
-  icon: string;
+  iconId: TileIconId;
   href: string;
   tabOrder?: number;
   accent?: 'accent' | 'primary' | 'success' | 'warning' | 'danger';
+  /** Hidden unless the session user has role 'admin'. */
   adminOnly?: boolean;
   extras?: TileExtras;
 };
@@ -40,7 +79,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'flashcards',
     title: 'Flashcards',
     desc: 'Spaced-repetition decks that adapt to you.',
-    icon: '🃏',
+    iconId: 'flashcards',
     href: '/flashcards',
     tabOrder: 1,
     accent: 'accent',
@@ -50,7 +89,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'quiz',
     title: 'MCQ Quiz',
     desc: 'Smart adaptive questions on any topic.',
-    icon: '🧠',
+    iconId: 'quiz',
     href: '/quiz',
     tabOrder: 2,
     accent: 'primary',
@@ -63,7 +102,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'quiz-from-passage',
     title: 'Quiz from passage',
     desc: 'Paste a text and AI generates comprehension questions.',
-    icon: '📖',
+    iconId: 'passage',
     href: '/quiz/from-passage',
     accent: 'accent',
   },
@@ -71,7 +110,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'vocab',
     title: 'Vocabulary',
     desc: 'Authored word lists with examples.',
-    icon: '📚',
+    iconId: 'vocab',
     href: '/vocab',
     tabOrder: 3,
     accent: 'accent',
@@ -80,7 +119,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'grammar',
     title: 'Grammar',
     desc: 'Curated explanations by CEFR level.',
-    icon: '✏️',
+    iconId: 'grammar',
     href: '/grammar',
     accent: 'accent',
   },
@@ -88,7 +127,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'exam',
     title: 'Exam',
     desc: 'Timed mini-mock with a real verdict.',
-    icon: '📝',
+    iconId: 'exam',
     href: '/exam',
     accent: 'warning',
   },
@@ -96,7 +135,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'progress',
     title: 'Progress',
     desc: 'Your accuracy, streaks, and weak spots.',
-    icon: '📈',
+    iconId: 'progress',
     href: '/progress',
     accent: 'success',
   },
@@ -104,7 +143,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'settings',
     title: 'Settings',
     desc: 'AI explanations, theme, and per-user toggles.',
-    icon: '⚙️',
+    iconId: 'settings',
     href: '/settings',
     accent: 'accent',
   },
@@ -112,7 +151,7 @@ export const HUB_TILES: HubTile[] = [
     id: 'admin',
     title: 'Admin',
     desc: 'Feature flags, rate-limit overrides, AI cache.',
-    icon: '🛠️',
+    iconId: 'admin',
     href: '/admin',
     adminOnly: true,
     accent: 'danger',
@@ -140,5 +179,3 @@ export const TILE_ACCENT: Record<NonNullable<HubTile['accent']>, string> = {
   warning: 'border-warning/30 bg-warning/10 text-warning',
   danger: 'border-danger/30 bg-danger/10 text-danger',
 };
-
-export type { ReactNode };
