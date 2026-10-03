@@ -81,6 +81,13 @@ export const ArrowRightIcon = ({
   </svg>
 );
 
+export const HomeIcon = ({ size = 18, className, decorative = true, title }: IconProps) => (
+  <svg {...baseProps(size, className, decorative, title)}>
+    <path d="M3 11l9-8 9 8" />
+    <path d="M5 10.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9.5" />
+  </svg>
+);
+
 export const ArrowLeftIcon = ({
   size = 16,
   className,
