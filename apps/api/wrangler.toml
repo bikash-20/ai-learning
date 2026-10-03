@@ -33,11 +33,8 @@ dataset = "ai-learning-analytics"
 # No binding stanza needed — `env.AI` is implicit on Workers.
 
 # --- Vars (non-secret config) ---
+# These apply to the deployed ai-learning-api worker. Local `wrangler dev` reads
+# from .dev.vars / .dev.toml and is not affected by this block.
 [vars]
-ENVIRONMENT = "development"
-ALLOWED_ORIGINS = "http://localhost:3000"
-
-[env.production]
-[env.production.vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://REPLACE_AFTER_VERCEL_DEPLOY.vercel.app"
+ALLOWED_ORIGINS = "https://web-nine-rho-1j664llz3j.vercel.app,http://localhost:3000"
