@@ -2,143 +2,135 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ---------- Color tokens ---------- */
+/* ---------- Design tokens ---------- */
 :root {
-  /* Palette */
-  --c-950: #001D39;
-  --c-800: #0A4174;
-  --c-600: #49769F;
-  --c-500: #4E8EA2;
-  --c-400: #6EA2B3;
-  --c-300: #7BBDE8;
-  --c-100: #BDD8E9;
-
-  /* Semantic — light mode */
-  --bg: #F1F7FB;        /* pale tint of c-100 */
-  --surface: #FFFFFF;
-  --surface-2: #E5EEF5; /* slightly darker than bg, for inputs */
-  --fg: #001D39;
-  --muted: #49769F;
-  --primary: #0A4174;
+  --background: #D9F3F7;
+  --surface: #E9F8FB;
+  --surface-muted: #CDEBF1;
+  --foreground: #08303F;
+  --muted-foreground: #3C6E7E;
+  --border: rgba(255, 255, 255, 0.75);
+  --primary: #0E8FA8;
   --primary-fg: #FFFFFF;
-  --secondary: #49769F;
-  --accent: #4E8EA2;
-  --ring: #7BBDE8;
-  --border: #BDD8E9;
+  --primary-hover: #12A9C4;
+  --accent: #2CC4D9;
+  --accent-fg: #06222D;
+  --glow: #3FE0F5;
+  --glass-bg: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  --success: #16A34A;
+  --danger: #DC2626;
+  --warning: #D97706;
 
-  --danger: #B91C1C;
-  --warning: #B45309;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 9999px;
+
+  --shadow-glow: 0 0 0 3px color-mix(in oklab, var(--glow) 35%, transparent);
+
+  /* CEFR badge tokens — per-level bg + fg, both modes meet WCAG AA 4.5:1 */
+  --cefr-a1-bg: #5BCAD4;  --cefr-a1-fg: #06222D;  /* 8.51:1 */
+  --cefr-a2-bg: #2CC4D9;  --cefr-a2-fg: #06222D;  /* 7.85:1 */
+  --cefr-b1-bg: #075A6B;  --cefr-b1-fg: #FFFFFF;  /* 7.82:1 */
+  --cefr-b2-bg: #075A6B;  --cefr-b2-fg: #FFFFFF;  /* 7.82:1 */
+  --cefr-c1-bg: #075A6B;  --cefr-c1-fg: #FFFFFF;  /* 7.82:1 */
+  --cefr-c2-bg: #04323D;  --cefr-c2-fg: #FFFFFF;  /* 13.74:1 */
 }
 
 .dark {
-  --bg: #001D39;
-  --surface: #0A4174;
-  --surface-2: #062B4D;
-  --fg: #BDD8E9;
-  --muted: #6EA2B3;
-  --primary: #7BBDE8;
-  --primary-fg: #001D39;
-  --secondary: #4E8EA2;
-  --accent: #4E8EA2;
-  --ring: #7BBDE8;
-  --border: #0A4174;
-
+  --background: #0B2A3D;
+  --surface: #103D54;
+  --surface-muted: #0F3145;
+  --foreground: #E6FAFD;
+  --muted-foreground: #8CCAD6;
+  --border: rgba(255, 255, 255, 0.20);
+  --primary: #1FB5CC;
+  --primary-fg: #06222D;
+  --primary-hover: #3FE0F5;
+  --accent: #2CC4D9;
+  --accent-fg: #06222D;
+  --glow: #3FE0F5;
+  --glass-bg: rgba(255, 255, 255, 0.10);
+  --glass-border: rgba(255, 255, 255, 0.35);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+  --success: #4ADE80;
   --danger: #F87171;
   --warning: #FBBF24;
+  /* CEFR badge tokens — solid tinted bg so text never depends on glass behind it */
+  --cefr-a1-bg: #9CEAF1;  --cefr-a1-fg: #06222D;  /* 12.13:1 */
+  --cefr-a2-bg: #5BCAD4;  --cefr-a2-fg: #06222D;  /* 8.51:1 */
+  --cefr-b1-bg: #2CC4D9;  --cefr-b1-fg: #06222D;  /* 7.85:1 */
+  --cefr-b2-bg: #1FB5CC;  --cefr-b2-fg: #06222D;  /* 6.70:1 */
+  --cefr-c1-bg: #075A6B;  --cefr-c1-fg: #FFFFFF;  /* 7.82:1 */
+  --cefr-c2-bg: #04323D;  --cefr-c2-fg: #FFFFFF;  /* 13.74:1 */
 }
 
-html, body { background: var(--bg); color: var(--fg); }
+/* ---------- Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
 
-/* ---------- CEFR badge gradient ---------- */
-.cefr-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 600;
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body { min-height: 100dvh; overflow-x: hidden; }
+
+/* ---------- Focus ring (keyboard only) ---------- */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-glow);
+  border-color: var(--accent);
+}
+
+/* ---------- Glass recipe (single source of truth) ---------- */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .glass { background: color-mix(in oklab, var(--surface) 90%, transparent); }
+}
+
+/* Smaller glass variants share the same recipe */
+.glass-sm  { @apply glass; border-radius: var(--radius-md); }
+.glass-pill { @apply glass; border-radius: var(--radius-pill); }
+
+/* ---------- Display typography (fluid via clamp) ---------- */
+.font-display {
+  font-family: var(--font-display), system-ui, sans-serif;
   letter-spacing: 0.02em;
-  padding: 0.125rem 0.5rem;
-  border-radius: 9999px;
-  color: #001D39;
-  border: 1px solid rgba(0, 29, 57, 0.12);
-}
-.cefr-A1 { background: var(--c-100); }
-.cefr-A2 { background: var(--c-300); }
-.cefr-B1 { background: var(--c-400); }
-.cefr-B2 { background: var(--c-500); color: #FFFFFF; }
-.cefr-C1 { background: var(--c-600); color: #FFFFFF; }
-.cefr-C2 { background: var(--c-800); color: #FFFFFF; }
-
-/* ---------- Focus rings ---------- */
-:where(button, input, select, textarea, a):focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  text-transform: uppercase;
 }
 
-/* ---------- Form base style ---------- */
-.input-base {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--fg);
-  border-radius: 0.75rem;
-  padding: 0.5rem 0.875rem;
-  font-size: 0.875rem;
-  width: 100%;
-}
-.input-base::placeholder { color: var(--muted); }
-.input-base:focus { border-color: var(--secondary); outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 40%, transparent); }
+/* Fluid display scale: 2.25rem at 320px, 4.5rem at 1280px. Same for h2/h3. */
+.fluid-display-xl { font-family: var(--font-display), system-ui, sans-serif; letter-spacing: 0.02em; text-transform: uppercase; font-size: clamp(2.25rem, 1.2rem + 5vw, 4.5rem); line-height: 0.95; }
+.fluid-display-lg { font-family: var(--font-display), system-ui, sans-serif; letter-spacing: 0.02em; text-transform: uppercase; font-size: clamp(1.75rem, 1.2rem + 2.5vw, 3rem); line-height: 1; }
+.fluid-display-md { font-family: var(--font-display), system-ui, sans-serif; letter-spacing: 0.02em; text-transform: uppercase; font-size: clamp(1.25rem, 1rem + 1vw, 1.75rem); line-height: 1.1; }
 
-.btn-primary {
-  background: var(--primary);
-  color: var(--primary-fg);
-  border-radius: 0.75rem;
-  padding: 0.5rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: filter 0.15s ease;
+/* ---------- Pulse (used by typing indicator) ---------- */
+@keyframes glass-pulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
 }
-.btn-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--secondary); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.dot-pulse { animation: glass-pulse 1.4s infinite ease-in-out both; }
+.dot-pulse:nth-child(2) { animation-delay: 0.16s; }
+.dot-pulse:nth-child(3) { animation-delay: 0.32s; }
 
-.btn-secondary {
-  background: var(--surface-2);
-  color: var(--fg);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  padding: 0.5rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: border-color 0.15s ease;
-}
-.btn-secondary:hover { border-color: var(--secondary); }
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  padding: 1rem;
-}
-
-.divider { border-color: var(--border); }
-
-/* ---------- Chat bubbles ---------- */
-.bubble-user {
-  background: var(--primary);
-  color: var(--primary-fg);
-  border-radius: 1rem;
-  padding: 0.5rem 0.875rem;
-  font-size: 0.875rem;
-  max-width: 80%;
-}
-.bubble-tutor {
-  background: var(--c-100);
-  color: var(--fg);
-  border-radius: 1rem;
-  padding: 0.5rem 0.875rem;
-  font-size: 0.875rem;
-  max-width: 80%;
-}
-.dark .bubble-tutor {
-  background: var(--surface-2);
-  color: var(--fg);
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .dot-pulse { animation: none; }
 }

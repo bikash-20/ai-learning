@@ -1,44 +1,49 @@
 import type { Config } from 'tailwindcss';
 
-const palette = {
-  'c-950': '#001D39',
-  'c-800': '#0A4174',
-  'c-600': '#49769F',
-  'c-500': '#4E8EA2',
-  'c-400': '#6EA2B3',
-  'c-300': '#7BBDE8',
-  'c-100': '#BDD8E9',
-} as const;
-
 export default {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        // Raw palette
-        ...palette,
-        // Semantic tokens — light mode defaults; dark variant defined in `app/globals.css`
-        bg: 'var(--bg)',
+        bg: 'var(--background)',
         surface: 'var(--surface)',
-        'surface-2': 'var(--surface-2)',
-        fg: 'var(--fg)',
-        muted: 'var(--muted)',
+        'surface-muted': 'var(--surface-muted)',
+        fg: 'var(--foreground)',
+        muted: 'var(--muted-foreground)',
+        border: 'var(--border)',
         primary: 'var(--primary)',
         'primary-fg': 'var(--primary-fg)',
-        secondary: 'var(--secondary)',
+        'primary-hover': 'var(--primary-hover)',
         accent: 'var(--accent)',
-        ring: 'var(--ring)',
-        border: 'var(--border)',
+        'accent-fg': 'var(--accent-fg)',
+        glow: 'var(--glow)',
+        success: 'var(--success)',
         danger: 'var(--danger)',
         warning: 'var(--warning)',
-        // CEFR gradient stops for badges
-        'cefr-a1': palette['c-100'],
-        'cefr-a2': palette['c-300'],
-        'cefr-b1': palette['c-400'],
-        'cefr-b2': palette['c-500'],
-        'cefr-c1': palette['c-600'],
-        'cefr-c2': palette['c-800'],
+        // CEFR badge tokens (per-level bg + fg, WCAG AA in both modes)
+        'cefr-a1-bg': 'var(--cefr-a1-bg)', 'cefr-a1-fg': 'var(--cefr-a1-fg)',
+        'cefr-a2-bg': 'var(--cefr-a2-bg)', 'cefr-a2-fg': 'var(--cefr-a2-fg)',
+        'cefr-b1-bg': 'var(--cefr-b1-bg)', 'cefr-b1-fg': 'var(--cefr-b1-fg)',
+        'cefr-b2-bg': 'var(--cefr-b2-bg)', 'cefr-b2-fg': 'var(--cefr-b2-fg)',
+        'cefr-c1-bg': 'var(--cefr-c1-bg)', 'cefr-c1-fg': 'var(--cefr-c1-fg)',
+        'cefr-c2-bg': 'var(--cefr-c2-bg)', 'cefr-c2-fg': 'var(--cefr-c2-fg)',
+      },
+      fontFamily: {
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+        body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+      },
+      letterSpacing: {
+        display: '0.02em',
+      },
+      borderRadius: {
+        glass: 'var(--radius-lg)',
+        pill: 'var(--radius-pill)',
+        card: 'var(--radius-md)',
+      },
+      boxShadow: {
+        glass: 'var(--shadow-glass)',
+        glow: 'var(--shadow-glow)',
       },
     },
   },
