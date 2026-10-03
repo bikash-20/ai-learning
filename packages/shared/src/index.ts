@@ -44,6 +44,10 @@ export type Topic = z.infer<typeof Topic>;
 export const Role = z.enum(['user', 'assistant', 'system']);
 export type Role = z.infer<typeof Role>;
 
+/** STEM-tutor chat mode. Drives the system prompt. Defaults to 'general'. */
+export const ChatMode = z.enum(['general', 'code', 'math', 'theory', 'explain']);
+export type ChatMode = z.infer<typeof ChatMode>;
+
 export const ChatMessage = z.object({
   role: Role,
   content: z.string().min(1).max(8000),
@@ -55,6 +59,12 @@ export const ChatRequest = z.object({
   stream: z.boolean().default(true),
   // optional client-side id for idempotency
   clientMsgId: z.string().uuid().optional(),
+  /** STEM-tutor mode. Drives the system prompt. Defaults to 'general'. */
+  mode: ChatMode.default('general'),
+  /** Optional conversation id — used to thread messages for history /
+   *  auto-title. If absent, the server creates one and returns it in the
+   *  `done` SSE event. */
+  conversationId: z.string().uuid().optional(),
 });
 export type ChatRequest = z.infer<typeof ChatRequest>;
 
@@ -62,7 +72,18 @@ export type ChatRequest = z.infer<typeof ChatRequest>;
 export const SseEvent =
   z.discriminatedUnion('event', [
     z.object({ event: z.literal('token'), data: z.object({ text: z.string() }) }),
-    z.object({ event: z.literal('done'), data: z.object({ provider: z.string(), model: z.string(), tokens: z.number() }) }),
+    z.object({
+      event: z.literal('done'),
+      data: z.object({
+        provider: z.string(),
+        model: z.string(),
+        tokens: z.number(),
+        /** Optional conversation id — present when the server created one. */
+        conversationId: z.string().uuid().optional(),
+        /** Mode echoed back so the client can keep its UI in sync. */
+        mode: ChatMode.optional(),
+      }),
+    }),
     z.object({ event: z.literal('error'), data: ApiError }),
   ]);
 export type SseEvent = z.infer<typeof SseEvent>;

@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------- Vendored Markdown render (KaTeX + highlight.js) ----------
+   Imported here so the bundles ship with the page (no CDN runtime). */
+@import 'katex/dist/katex.min.css';
+@import 'highlight.js/styles/github-dark.css';
+
 /* ---------- Design tokens ---------- */
 :root {
   --background: #D9F3F7;
@@ -250,3 +255,69 @@ body {
   0%   { background-position: 50% 50%; }
   100% { background-position: 55% 55%; }
 }
+
+/* ---------- Chat prose ----------
+   Used by ChatBubble when rendering Markdown. Compact, monospace-friendly. */
+.prose-quiet {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--foreground);
+}
+.prose-quiet p { margin: 0 0 0.6rem 0; }
+.prose-quiet p:last-child { margin-bottom: 0; }
+.prose-quiet h1, .prose-quiet h2, .prose-quiet h3 {
+  font-weight: 600;
+  margin: 0.8rem 0 0.4rem 0;
+  line-height: 1.25;
+}
+.prose-quiet h1 { font-size: 1.05rem; }
+.prose-quiet h2 { font-size: 0.98rem; }
+.prose-quiet h3 { font-size: 0.92rem; }
+.prose-quiet ul, .prose-quiet ol { margin: 0 0 0.6rem 1.2rem; padding: 0; }
+.prose-quiet li { margin: 0.15rem 0; }
+.prose-quiet a { color: var(--primary); text-decoration: underline; }
+.prose-quiet code:not(pre code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  padding: 0.1rem 0.3rem;
+  background: rgba(8, 48, 63, 0.08);
+  border-radius: 4px;
+}
+.prose-quiet pre {
+  background: #0b1c26;
+  color: #e6edf3;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin: 0.5rem 0 0.7rem 0;
+  position: relative;
+}
+.prose-quiet pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: inherit;
+  background: transparent;
+  padding: 0;
+}
+.prose-quiet table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 0.7rem 0;
+  font-size: 0.85em;
+}
+.prose-quiet th, .prose-quiet td {
+  border: 1px solid rgba(8, 48, 63, 0.18);
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+}
+.prose-quiet th { background: rgba(8, 48, 63, 0.06); font-weight: 600; }
+.prose-quiet blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 0.5rem 0 0.7rem 0;
+  padding: 0.1rem 0 0.1rem 0.7rem;
+  color: var(--muted-foreground);
+}
+/* KaTeX inline size bump so it doesn't look squished. */
+.prose-quiet .katex { font-size: 1.02em; }
+.prose-quiet .katex-display { margin: 0.5rem 0; overflow-x: auto; }

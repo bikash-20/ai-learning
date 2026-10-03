@@ -187,6 +187,29 @@ export const chatMessage = sqliteTable('chat_message', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
 
+// ---------- Conversations (per-user chat threads) ----------
+// Groups messages under a single thread for the history sidebar.
+// Created lazily on the first POST /api/chat that omits conversationId.
+export const conversation = sqliteTable('conversation', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  mode: text('mode', { enum: ['general', 'code', 'math', 'theory', 'explain'] }).notNull().default('general'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
+
+export const conversationMessage = sqliteTable('conversation_message', {
+  id: text('id').primaryKey(),
+  conversationId: text('conversation_id').notNull().references(() => conversation.id, { onDelete: 'cascade' }),
+  role: text('role', { enum: ['user', 'assistant', 'system'] }).notNull(),
+  content: text('content').notNull(),
+  provider: text('provider', { enum: ['workers', 'openrouter'] }),
+  model: text('model'),
+  tokens: integer('tokens'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
+
 // ---------- AI result cache ----------
 // Same prompt + same model parameters = same answer. Dedup across users so
 // free-tier quota isn't burned twice on the same (topic, level, n) quiz

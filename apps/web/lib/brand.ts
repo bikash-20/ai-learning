@@ -10,17 +10,17 @@ export const BRAND = {
   /** App name as it should appear in the wordmark (uppercase, no trailing periods). */
   wordmark: 'QUANTARA',
   /** One-line marketing tagline under the hero heading. */
-  tagline: 'AI-powered English practice — IELTS, grammar, vocabulary.',
+  tagline: 'An AI tutor for CS, math, physics, and code.',
   /** Sub-line under the sign-in card. */
-  signInTagline: 'Practice English with an AI tutor.',
+  signInTagline: 'A STEM tutor in your pocket — chat, quiz, flashcards.',
   /** Hero tagline on the sign-in brand panel. */
   heroTagline: 'Learn the universe of knowledge.',
   /** Three short value points shown on the sign-in brand panel (desktop).
    *  `iconId` is resolved to an inline SVG by the consumer. */
   valuePoints: [
-    { iconId: 'sparkle', text: 'Adaptive AI tutor that meets you where you are.' },
-    { iconId: 'brain',   text: 'Spaced-repetition so words and grammar actually stick.' },
-    { iconId: 'exam',    text: 'Timed mini-mocks that feel like the real exam.' },
+    { iconId: 'sparkle', text: 'Streaming answers to CS, math, and code questions.' },
+    { iconId: 'brain',   text: 'Flashcards with spaced repetition so concepts stick.' },
+    { iconId: 'exam',    text: 'Timed mini-mocks across every STEM subject.' },
   ] as const,
   /** Founder credit used on the home hero, hub, and sign-in footer. */
   founder: {
@@ -30,14 +30,14 @@ export const BRAND = {
   },
   /** Short study tips rotated daily on the hub hero. Keep tone friendly. */
   studyTips: [
-    "Review 10 new words every morning — your brain remembers what it sees first.",
-    "Speak aloud when you practise: hearing yourself builds confidence faster than silent reading.",
-    "Mistakes are proof you're trying. Re-read your last quiz, then try the same topic again.",
-    "Set a 5-minute timer for grammar drills. Short, focused bursts beat long, distracted sessions.",
-    "Watch one short English clip a day with subtitles on, then off. Notice what changes.",
-    "Write 3 sentences using today's new vocab. Use them in a real context — your future self will thank you.",
-    "Don't translate whole sentences in your head. Think in chunks: subject + verb + object.",
-    "Sleep on it. Your brain consolidates vocabulary while you rest, not while you cram.",
+    'Use Code mode for bug fixes and full snippets — the tutor formats, highlights, and explains each line.',
+    'For math problems, paste the equation and ask for a step-by-step. Numbers beat vibes.',
+    'When a concept lands, send yourself a 2-line summary. It doubles as a flashcard.',
+    'Set a 5-minute timer for drills. Short, focused bursts beat long, distracted sessions.',
+    "Re-derive what you memorized last week. If you can't, you don't actually know it yet.",
+    'Read errors top-to-bottom — the first line is usually the actual cause.',
+    'Sleep on it. Your brain consolidates what you studied while you rest, not while you cram.',
+    'Ship something tiny every day. Ten lines of working code beats fifty lines of pseudo-code.',
   ],
 } as const;
 

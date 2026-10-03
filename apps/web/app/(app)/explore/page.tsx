@@ -177,7 +177,7 @@ export default function ExplorePage() {
             </span>
           </div>
           <p className="text-sm text-muted">
-            One-on-one with the tutor. Streaming answers, real explanations, model chip on every reply.
+            One-on-one STEM tutor. Streaming answers, code + math with proper formatting, model chip on every reply.
           </p>
 
           {/* Daily tip — quote/box with the brand avatar. */}

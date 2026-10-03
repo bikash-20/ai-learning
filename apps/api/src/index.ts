@@ -4,6 +4,7 @@ import { cors } from './lib/cors';
 import { handleError } from './lib/errors';
 import { authRoute } from './routes/auth';
 import { chatRoute } from './routes/chat';
+import { chatHistoryRoute } from './routes/chatHistory';
 import { quizRoute } from './routes/quiz';
 import { vocabRoute } from './routes/vocab';
 import { examRoute } from './routes/exam';
@@ -29,6 +30,7 @@ const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
   .route('/', healthRoute)
   .route('/', authRoute)
   .route('/', chatRoute)
+  .route('/', chatHistoryRoute)
   .route('/', quizRoute)
   .route('/', examRoute)
   .route('/', meRoute)

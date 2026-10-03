@@ -6,9 +6,10 @@ import { idemMiddleware, idemStore, rateLimit } from '../lib/ratelimit';
 import { withCors } from '../lib/cors';
 import { myChat } from '../ai/provider';
 import { AllUpstreamError, UpstreamAuthError } from '../ai/cascade';
-import { SYSTEM_TUTOR } from '../ai/prompt';
+import { SYSTEM_STEM } from '../ai/prompt';
 import { ChatRequest, ErrorCode } from '@quantara/shared';
 import { drizzle } from 'drizzle-orm/d1';
+import { eq, and } from 'drizzle-orm';
 import * as schema from '../db/schema';
 import { trackAI } from '../lib/analytics';
 
@@ -27,6 +28,41 @@ const sseComment = (text: string) =>
  */
 const finalize = (c: { env: Env; req: { header: (k: string) => string | undefined } }, res: Response): Response => {
   return withCors(c.env, c.req.header('origin') ?? '', res);
+};
+
+/**
+ * Generate a 3-5 word conversation title from the first user message.
+ * Best-effort: uses `myChat` with a dedicated system prompt, then writes
+ * the result back to `conversation.title`. Failures are silent — the user
+ * can rename manually.
+ */
+const autoTitle = async (env: Env, userId: string, conversationId: string, firstMessage: string) => {
+  try {
+    const rl = await (async () => {
+      const id = env.RATE_LIMITER.idFromName(userId);
+      const stub = env.RATE_LIMITER.get(id) as DurableObjectStub & {
+        check: (route: string, limit: number, windowMs: number) => Promise<{ ok: true } | { ok: false; remaining: number; resetAt: number }>;
+      };
+      return stub.check('chatTitle', 200, 24 * 60 * 60_000);
+    })();
+    if (!rl.ok) return;
+
+    const out = await myChat(env, 'chat-title', {
+      messages: [{ role: 'user', content: firstMessage }],
+      system: `Return a 3-5 word conversation title for the user's first message. No quotes, no preamble, no punctuation. Use Title Case. Examples: "Bubble sort in Python", "Solve 2x plus 3 equals 11", "Big O for hash tables".`,
+      maxTokens: 24,
+      temperature: 0.3,
+    }, { kind: 'text', authoritative: true });
+    const title = (out.text || '').trim().split('\n')[0]!.replace(/^["'`]+|["'`]+$/g, '').slice(0, 80);
+    if (!title) return;
+    const db = drizzle(env.DB, { schema });
+    await db
+      .update(schema.conversation)
+      .set({ title, updatedAt: new Date() })
+      .where(and(eq(schema.conversation.id, conversationId), eq(schema.conversation.userId, userId)));
+  } catch (e) {
+    console.warn('chat_title_failed', { conversationId, err: String(e).slice(0, 160) });
+  }
 };
 
 /**
@@ -171,6 +207,8 @@ const buildChatStream = (
   system: string,
   idempKey: string | undefined,
   start: number,
+  conversationId: string,
+  mode: string,
 ): ReadableStream<Uint8Array> => {
   return new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -241,17 +279,22 @@ const buildChatStream = (
         //    row write fails (we log + still send `done`).
         if (outcome) {
           try {
-            await db.insert(schema.chatMessage).values({
+            await db.insert(schema.conversationMessage).values({
               id: crypto.randomUUID(),
-              userId,
+              conversationId,
               role: 'assistant',
               content: outcome.text,
               provider: outcome.provider,
               model: outcome.model,
               tokens: outcome.tokens,
             });
+            // Bump conversation.updatedAt so the history list reorders.
+            await db
+              .update(schema.conversation)
+              .set({ updatedAt: new Date() })
+              .where(eq(schema.conversation.id, conversationId));
           } catch (e) {
-            console.warn('chat_assistant_persist_failed', { userId, err: String(e) });
+            console.warn('chat_assistant_persist_failed', { userId, conversationId, err: String(e) });
           }
           trackAI(env, {
             provider: outcome.provider,
@@ -268,6 +311,8 @@ const buildChatStream = (
             tokens: outcome.tokens,
             cached: outcome.cached,
             firstTokenAtMs: outcome.firstTokenAtMs,
+            conversationId,
+            mode,
           }));
         } else if (streamErr) {
           // Always emit the structured `error` event so the client can map
@@ -318,25 +363,65 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
     }
     const body = parsed;
 
-    const rl = await rateLimit(c, 'chat');
-    if (rl) return finalize(c, rl);
-
     const userId = c.get('userId');
     const db = drizzle(c.env.DB, { schema });
+
+    // 1) Resolve conversation. Create one if the request didn't bring an id.
+    let conversationId = body.conversationId;
+    if (!conversationId) {
+      conversationId = crypto.randomUUID();
+      await db.insert(schema.conversation).values({
+        id: conversationId,
+        userId,
+        title: 'New chat',
+        mode: body.mode,
+      });
+    } else {
+      // Verify ownership (404 if it belongs to a different user).
+      const owns = await db
+        .select({ id: schema.conversation.id })
+        .from(schema.conversation)
+        .where(and(eq(schema.conversation.id, conversationId), eq(schema.conversation.userId, userId)))
+        .limit(1);
+      if (owns.length === 0) {
+        return finalize(c, new Response(JSON.stringify({ code: ErrorCode.NotFound, message: 'Conversation not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }));
+      }
+    }
+
+    // 2) Rate-limit per (user, conversation).
+    const rl = await rateLimit(c, 'chat', conversationId);
+    if (rl) return finalize(c, rl);
+
+    // 3) Persist the user message into the new conversation.
     const lastMsg = body.messages[body.messages.length - 1]!;
     const userMsgId = crypto.randomUUID();
-    await db.insert(schema.chatMessage).values({
+    await db.insert(schema.conversationMessage).values({
       id: userMsgId,
-      userId,
+      conversationId,
       role: 'user',
       content: lastMsg.content,
     });
 
-    const system = SYSTEM_TUTOR('B2');
+    // 4) If this is the first user message in a fresh conversation, kick
+    //    off an auto-title best-effort. Failures are silent.
+    const existing = await db
+      .select({ id: schema.conversationMessage.id })
+      .from(schema.conversationMessage)
+      .where(eq(schema.conversationMessage.conversationId, conversationId))
+      .limit(2);
+    if (existing.length === 1) {
+      // First user message — schedule a title generator.
+      c.executionCtx.waitUntil(autoTitle(c.env, userId, conversationId, lastMsg.content));
+    }
+
+    const system = SYSTEM_STEM(body.mode);
     const start = Date.now();
     const primaryModel = resolveWorkersAiModels(c.env)[0]!;
 
-    const stream = buildChatStream(c, db, userId, body, system, idempKey, start);
+    const stream = buildChatStream(c, db, userId, body, system, idempKey, start, conversationId, body.mode);
 
     const res = new Response(stream, {
       headers: {
@@ -349,6 +434,7 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
         // the client which model was tried. The authoritative value comes
         // from the `done` event once a real answer is produced.
         'X-Model-Used': primaryModel,
+        'X-Conversation-Id': conversationId,
       },
     });
     return finalize(c, res);
