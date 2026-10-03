@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Level, QuizItem, QuizExplainRequest, QuizExplainResponse, QuizFromPassageRequest } from '@quantara/shared';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Select } from '@/components/ui/Select';
+import { Textarea } from '@/components/ui/Textarea';
 import { Button } from '@/components/ui/Button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -227,13 +228,13 @@ export default function PassageQuizPage() {
         <GlassCard className="space-y-4">
           <label className="block">
             <span className="text-xs uppercase tracking-wide text-muted">Passage</span>
-            <textarea
+            <Textarea
               value={passage}
               onChange={(e) => setPassage(e.target.value)}
               rows={8}
               minLength={80}
               maxLength={8000}
-              className="mt-1 w-full rounded-card border border-glass-border bg-glass px-3 py-2 text-sm text-fg focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+              className="mt-1 min-h-[180px] resize-y"
             />
             <div className="mt-1 text-[11px] text-muted">{passage.length} / 8000 chars · 80 minimum</div>
           </label>
