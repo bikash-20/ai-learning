@@ -9,7 +9,13 @@ import { useEffect, useState } from 'react';
  * Trims long provider IDs to the form `vendor/name` or just `name` if
  * there's no slash. Hidden when the user toggles it (state in localStorage).
  */
-export const ModelChip = ({ modelId }: { modelId: string | undefined }) => {
+export const ModelChip = ({
+  modelId,
+  cached,
+}: {
+  modelId: string | undefined;
+  cached?: boolean | undefined;
+}) => {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
@@ -26,6 +32,14 @@ export const ModelChip = ({ modelId }: { modelId: string | undefined }) => {
     <span className="glass-pill ml-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted">
       <span aria-hidden="true">via</span>
       <span className="text-fg">{label}</span>
+      {cached && (
+        <span
+          className="ml-0.5 rounded-pill border border-accent/30 bg-accent/10 px-1 text-[9px] font-semibold text-accent"
+          title="Reused a recent reply (cached in D1)"
+        >
+          cached
+        </span>
+      )}
       <button
         type="button"
         onClick={() => {

@@ -10,7 +10,6 @@ import { useRole } from '@/lib/useRole';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
 import { BrandMark, BrandWordmark, FounderCredit } from '@/components/Brand';
-import { ThemeToggle } from '@/components/ThemeToggle';
 
 type HealthState = 'unknown' | 'live' | 'offline';
 
@@ -119,7 +118,7 @@ const Tile = ({ tile, onChip }: { tile: HubTile; onChip?: (label: string) => voi
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { user, signOut } = useSession();
+  const { user } = useSession();
   const role = useRole();
   const health = useHealthState();
   const [tip] = useState<string>(() => todaysTip());
@@ -132,18 +131,16 @@ export default function ExplorePage() {
     else router.push('/quiz');
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    router.replace('/sign-in');
-  };
-
   return (
     <main className="space-y-6">
-      {/* === HERO === */}
+      {/* === HERO ===
+           Theme toggle is rendered by the shared Navbar (desktop) and
+           MobileTopBar (mobile) — do NOT duplicate it here.
+           Exam shortcut is rendered by the tile grid below — do NOT
+           duplicate it in the hero. */}
       <GlassCard className="space-y-5">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           <HealthChip state={health} />
-          <ThemeToggle />
         </div>
 
         <div className="flex items-start gap-4">
@@ -164,7 +161,10 @@ export default function ExplorePage() {
           </div>
         </div>
 
-        {/* Hero CTA: Chat with Quantara */}
+        {/* Hero CTA: Chat with Quantara.
+            The full set of features (Quiz, Vocab, Exam, Progress, Settings,
+            Admin) is exposed in the tile grid below. The hero stays focused
+            on the marquee flow: start a chat session. */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span aria-hidden="true" className="text-xl">✨</span>
@@ -189,15 +189,14 @@ export default function ExplorePage() {
               <span aria-hidden="true" className="mr-1">💬</span>
               Start chatting
             </Button>
-            <Button variant="secondary" onClick={() => router.push('/exam')} className="flex-1 sm:flex-none">
-              <span aria-hidden="true" className="mr-1">📝</span>
-              Exam
-            </Button>
           </div>
         </div>
       </GlassCard>
 
-      {/* === TILES GRID === */}
+      {/* === TILES GRID ===
+           Single source of truth for navigation: `HUB_TILES` in hubConfig.ts.
+           Adding/removing a feature here automatically syncs the mobile
+           tab bar (`TAB_TILES`) and the desktop navbar (`navItems`/`HUB_TILES`). */}
       <section aria-label="Features" className="space-y-3">
         <h2 className="font-display text-sm uppercase tracking-display text-muted">
           Learn
@@ -213,7 +212,11 @@ export default function ExplorePage() {
         </div>
       </section>
 
-      {/* === ACCOUNT AREA === */}
+      {/* === ACCOUNT AREA ===
+           Logout lives in the Navbar's UserMenu (desktop) and the
+           MobileTopBar's avatar menu (mobile). We keep a slim user info
+           card here so the user can confirm their account without
+           scrolling up to the navbar. */}
       <GlassCard className="space-y-3">
         <h2 className="font-display text-sm uppercase tracking-display text-muted">
           Account
@@ -233,14 +236,6 @@ export default function ExplorePage() {
               <div className="truncate text-xs text-muted">{user.email}</div>
             )}
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" size="sm" onClick={() => router.push('/explore')}>
-            Explore
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            Logout
-          </Button>
         </div>
       </GlassCard>
 
