@@ -190,4 +190,71 @@ export const ExamTemplate = z.object({
   totalDurationMin: z.number().int().positive(),
   sections: z.array(ExamSection).min(1),
 });
+
+/**
+ * Start an exam session. Returns items WITHOUT answerIdx or explanation so
+ * the client can't peek. Verdict + explanations are server-side only and
+ * revealed on submit. Items are drawn from the curated MCQ bank for now;
+ * AI generation can plug in later behind the same surface.
+ */
+export const ExamStartRequest = z.object({
+  kind: ExamKind.default('ielts-mini-mock'),
+  level: Level,
+  /** Total items. Capped server-side to keep D1 queries cheap. */
+  n: z.number().int().min(5).max(40).default(20),
+  /** Difficulty: easy = MCQ bank easy; hard = MCQ bank hard. */
+  difficulty: z.enum(['easy', 'hard']).default('hard'),
+});
+export type ExamStartRequest = z.infer<typeof ExamStartRequest>;
+
+/** Items are returned WITHOUT answerIdx / explanation. */
+export const ExamItem = z.object({
+  id: z.string().uuid(),
+  prompt: z.string().min(3),
+  options: z.array(z.string().min(1)).min(2).max(6),
+});
+export type ExamItem = z.infer<typeof ExamItem>;
+
+export const ExamStartResponse = z.object({
+  examId: z.string().uuid(),
+  /** Total seconds the client should countdown. Computed from the
+   *  template + n. 60s/question is a reasonable default. */
+  durationSec: z.number().int().positive(),
+  items: z.array(ExamItem).min(1),
+  /** Free-form source label for the chip ("bank" for now). */
+  provider: z.string(),
+  model: z.string(),
+});
+export type ExamStartResponse = z.infer<typeof ExamStartResponse>;
+
+export const ExamAnswer = z.object({
+  itemId: z.string().uuid(),
+  picked: z.number().int().nonnegative(),
+});
+export type ExamAnswer = z.infer<typeof ExamAnswer>;
+
+export const ExamSubmitRequest = z.object({
+  examId: z.string().uuid(),
+  answers: z.array(ExamAnswer),
+});
+export type ExamSubmitRequest = z.infer<typeof ExamSubmitRequest>;
+
+export const ExamResultItem = z.object({
+  itemId: z.string().uuid(),
+  picked: z.number().int().nonnegative().nullable(),
+  correct: z.boolean(),
+  correctIdx: z.number().int().nonnegative(),
+  explanation: z.string(),
+});
+export type ExamResultItem = z.infer<typeof ExamResultItem>;
+
+export const ExamSubmitResponse = z.object({
+  examId: z.string().uuid(),
+  score: z.number().int().nonnegative(),
+  total: z.number().int().positive(),
+  /** CEFR-band mapping for this score. Coarse heuristic. */
+  band: z.enum(['a1', 'a2', 'b1', 'b2', 'c1', 'c2']),
+  results: z.array(ExamResultItem),
+});
+export type ExamSubmitResponse = z.infer<typeof ExamSubmitResponse>;
 export type ExamTemplate = z.infer<typeof ExamTemplate>;

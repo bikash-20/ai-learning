@@ -148,8 +148,25 @@ export const examTemplate = sqliteTable('exam_template', {
 export const examAttempt = sqliteTable('exam_attempt', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  templateId: text('template_id').notNull().references(() => examTemplate.id),
+  /** Optional: linked to a pre-deployed template. Null for ad-hoc exams
+   *  generated from the MCQ bank on the fly. */
+  templateId: text('template_id').references(() => examTemplate.id),
+  /** Ad-hoc exam items — list of mcqBank ids drawn when /api/exam/run
+   *  was called. The server-side verdict on submit uses this list. */
+  itemIds: text('item_ids', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+  /** Server-verified answer key per item id. NEVER sent to the client
+   *  until /api/exam/submit is called. */
+  answerKey: text('answer_key', { mode: 'json' })
+    .$type<Record<string, { answerIdx: number; explanation: string }>>()
+    .notNull()
+    .default(sql`'{}'`),
+  kind: text('kind', { enum: ['ielts-mini-mock'] }).notNull().default('ielts-mini-mock'),
+  level: text('level').notNull().default('B2'),
+  difficulty: text('difficulty', { enum: ['easy', 'hard'] }).notNull().default('hard'),
   score: integer('score'),
+  /** Total seconds the client should countdown. Persisted so the
+   *  /api/exam/submit path can detect "expired but submitted" cases. */
+  durationSec: integer('duration_sec').notNull().default(0),
   startedAt: integer('started_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
 });

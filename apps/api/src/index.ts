@@ -6,6 +6,7 @@ import { authRoute } from './routes/auth';
 import { chatRoute } from './routes/chat';
 import { quizRoute } from './routes/quiz';
 import { vocabRoute } from './routes/vocab';
+import { examRoute } from './routes/exam';
 import { healthRoute } from './routes/health';
 
 export { RateLimiter } from './durable/RateLimiter';
@@ -26,6 +27,7 @@ const app = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
   .route('/', authRoute)
   .route('/', chatRoute)
   .route('/', quizRoute)
+  .route('/', examRoute)
   .route('/', vocabRoute)
   .notFound((c) => c.json({ code: 'NOT_FOUND', message: 'No route' }, 404))
   .onError((e, c) => handleError(c, e));
