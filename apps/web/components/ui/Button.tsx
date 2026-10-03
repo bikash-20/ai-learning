@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'icon';
 type Size = 'sm' | 'md';
@@ -15,14 +15,9 @@ const sizeMap: Record<Size, string> = {
 };
 
 const variantMap: Record<Variant, string> = {
-  // Primary sits on a saturated teal — its label uses --primary-fg for contrast.
   primary:
     'bg-primary text-primary-fg shadow-[0_0_18px_-2px_color-mix(in_oklab,var(--glow)_55%,transparent)] ' +
     'hover:bg-primary-hover hover:shadow-[0_0_22px_-2px_color-mix(in_oklab,var(--glow)_75%,transparent)]',
-  // Secondary is an outlined button — its text MUST come from the foreground
-  // token so it stays readable on both the dark cyan border (light mode) and
-  // the bright cyan border (dark mode). Previously this used --accent-fg
-  // which became near-invisible in dark mode.
   secondary:
     'bg-transparent text-fg border-[1.5px] border-accent ' +
     'hover:shadow-[0_0_18px_-2px_color-mix(in_oklab,var(--glow)_70%,transparent)]',
@@ -40,8 +35,15 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
 };
 
-export const Button = ({ variant = 'primary', size = 'md', className = '', children, ...rest }: ButtonProps) => (
-  <button {...rest} className={`${base} ${sizeMap[size]} ${variantMap[variant]} ${className}`.trim()}>
-    {children}
-  </button>
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant = 'primary', size = 'md', className = '', children, ...rest }, ref) => (
+    <button
+      ref={ref}
+      {...rest}
+      className={`${base} ${sizeMap[size]} ${variantMap[variant]} ${className}`.trim()}
+    >
+      {children}
+    </button>
+  ),
 );
+Button.displayName = 'Button';

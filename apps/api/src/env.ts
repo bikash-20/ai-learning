@@ -24,8 +24,29 @@ export interface Env {
   OPENROUTER_MODELS?: string;
   /** Single-model back-compat: if OPENROUTER_MODELS is empty, this is used. */
   OPENROUTER_MODEL?: string;
+  /** Comma-separated ordered list of Workers AI models tried first in `myChat`. */
+  WORKERS_AI_MODELS?: string;
+  /** Single-model back-compat: if WORKERS_AI_MODELS is empty, this is used. */
   WORKERS_AI_MODEL?: string; // override for tests
 }
 
 export const HAIKU_MODEL = '@cf/meta/llama-3.3-70b-instruct';
 export const DEFAULT_OPENROUTER_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+
+/** Default Workers AI tier — curated from the live `@cf/...` catalog. */
+export const DEFAULT_WORKERS_AI_MODELS = [
+  '@cf/meta/llama-3.3-70b-instruct', // best instruction following
+  '@cf/meta/llama-3.1-8b-instruct',  // fast fallback
+  '@cf/mistral/mistral-7b-instruct-v0.2', // different family
+] as const;
+
+/** Parse the comma-separated list, falling back to the curated default. */
+export const resolveWorkersAiModels = (env: Env): string[] => {
+  const list = (env.WORKERS_AI_MODELS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (list.length > 0) return list;
+  if (env.WORKERS_AI_MODEL) return [env.WORKERS_AI_MODEL];
+  return [...DEFAULT_WORKERS_AI_MODELS];
+};

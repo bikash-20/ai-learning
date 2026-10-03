@@ -1,9 +1,12 @@
 import type { Env } from '../env';
+import { resolveWorkersAiModels } from '../env';
 import type { ChatMessage } from '@ai-learning/shared';
+
+export type Provider = 'workers' | 'openrouter';
 
 export type CascadeResult = {
   text: string;
-  provider: 'openrouter';
+  provider: Provider;
   model: string;
   tokens: number;
   latencyMs: number;
@@ -20,6 +23,7 @@ export type CascadeInput = {
 
 const BREAKER_TTL_MS = 60_000;
 const REQ_TIMEOUT_MS = 30_000;
+const WORKERS_TIMEOUT_MS = 15_000;
 
 /**
  * Short-lived circuit breaker. A model that fails within the last 60s is
@@ -410,5 +414,94 @@ export const openRouterCascadeJson = async <T>(
   throw new JsonCascadeError(
     'The AI returned malformed JSON for every model. Please try again.',
     attempts,
+  );
+};
+
+/** Outcome of one Workers AI call against one model. Mirrors the OpenRouter
+ *  shape so the two tiers compose cleanly inside `provider.myChat`.
+ *  Workers AI doesn't expose distinct HTTP status codes the same way — most
+ *  failures surface as thrown errors — so we keep the variant narrow.
+ */
+type WorkersAttempt =
+  | { type: 'success'; result: CascadeResult }
+  | { type: 'transport_error'; reason: string; latencyMs: number };
+
+const messagesToOpenAI = (msgs: ChatMessage[], system?: string) => [
+  ...(system ? [{ role: 'system' as const, content: system }] : []),
+  ...msgs.map((m) => ({ role: m.role, content: m.content })),
+];
+
+const callWorkersModel = async (
+  env: Env,
+  model: string,
+  input: CascadeInput,
+): Promise<WorkersAttempt> => {
+  const start = Date.now();
+  try {
+    const res = (await Promise.race([
+      env.AI.run(model as never, {
+        messages: messagesToOpenAI(input.messages, input.system),
+        max_tokens: input.maxTokens ?? 1024,
+        temperature: input.temperature ?? 0.4,
+      } as never),
+      new Promise((_resolve, reject) => {
+        setTimeout(() => reject(new Error('workers_timeout')), WORKERS_TIMEOUT_MS);
+      }),
+    ])) as { response?: string; usage?: { tokens?: number } };
+    const latencyMs = Date.now() - start;
+    const text = (res.response ?? '').trim();
+    if (!text) {
+      console.warn('workers_ai_attempt', {
+        route: input.route, model, latencyMs, outcome: 'empty_text',
+      });
+      return { type: 'transport_error', reason: 'empty_text', latencyMs };
+    }
+    const tokens = res.usage?.tokens ?? 0;
+    console.log('workers_ai_attempt', {
+      route: input.route, model, latencyMs, outcome: 'success', tokens,
+    });
+    return {
+      type: 'success',
+      result: { text, provider: 'workers', model, tokens, latencyMs },
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const latencyMs = Date.now() - start;
+    const isTimeout = msg.toLowerCase().includes('timeout');
+    console.warn('workers_ai_attempt', {
+      route: input.route, model, latencyMs,
+      outcome: isTimeout ? 'timeout' : 'exception', error: msg.slice(0, 120),
+    });
+    return {
+      type: 'transport_error',
+      reason: isTimeout ? 'timeout' : `exception:${msg.slice(0, 80)}`,
+      latencyMs,
+    };
+  }
+};
+
+/**
+ * Walk the configured Workers AI model list. Stops on the first success.
+ * On total failure throws `AllUpstreamError` so callers can surface a
+ * friendly 503 — same shape as the OpenRouter cascade so the two compose.
+ *
+ * Note: Workers AI doesn't have the same 429/402 distinction; we don't mark
+ * the OpenRouter breaker for a Workers failure (different namespace).
+ */
+export const workersCascade = async (
+  env: Env,
+  input: CascadeInput,
+): Promise<CascadeResult> => {
+  const models = resolveWorkersAiModels(env);
+  let lastReason = 'unknown';
+  for (const model of models) {
+    const outcome = await callWorkersModel(env, model, input);
+    if (outcome.type === 'success') return outcome.result;
+    lastReason = outcome.reason;
+  }
+  throw new AllUpstreamError(
+    `All Workers AI models failed (${lastReason}). Falling back to OpenRouter.`,
+    'upstream',
+    models.map((m) => ({ model: m, error: lastReason, latencyMs: 0 })),
   );
 };

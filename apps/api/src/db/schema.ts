@@ -165,3 +165,15 @@ export const chatMessage = sqliteTable('chat_message', {
   tokens: integer('tokens'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
+
+// ---------- AI result cache ----------
+// Same prompt + same model parameters = same answer. Dedup across users so
+// free-tier quota isn't burned twice on the same (topic, level, n) quiz
+// generation, or the same (question, chosen answer, level) explanation.
+export const aiCache = sqliteTable('ai_cache', {
+  cacheKey: text('cache_key').primaryKey(),
+  kind: text('kind', { enum: ['text', 'json', 'explanation'] }).notNull(),
+  payload: text('payload').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});

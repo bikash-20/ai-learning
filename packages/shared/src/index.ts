@@ -129,6 +129,23 @@ export const QuizAttemptResponse = z.object({
 });
 export type QuizAttemptResponse = z.infer<typeof QuizAttemptResponse>;
 
+// Per-question AI explain (called by the quiz reveal in Phase 0).
+export const QuizExplainRequest = z.object({
+  quizId: z.string().uuid(),
+  itemId: z.string().uuid(),
+  pickedIdx: z.number().int().nonnegative(),
+  level: Level,
+});
+export type QuizExplainRequest = z.infer<typeof QuizExplainRequest>;
+
+export const QuizExplainResponse = z.object({
+  explanation: z.string(),
+  model: z.string(),
+  provider: z.enum(['workers', 'openrouter']),
+  cached: z.boolean().optional(),
+});
+export type QuizExplainResponse = z.infer<typeof QuizExplainResponse>;
+
 // ---------- Vocab / Grammar (authored content) ----------
 export const Vocab = z.object({
   word: z.string().min(1),

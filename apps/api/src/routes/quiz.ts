@@ -3,10 +3,17 @@ import type { Env } from '../env';
 import { requireAuth } from '../lib/requireAuth';
 import { rateLimit } from '../lib/ratelimit';
 import { handleError } from '../lib/errors';
-import { chatJson } from '../ai/provider';
+import { chatJson, myChat } from '../ai/provider';
+import { cacheKey } from '../lib/aicache';
 import { AllUpstreamError, UpstreamAuthError, JsonCascadeError } from '../ai/cascade';
 import { QUIZ_GEN_PROMPT, EXPLAIN_PROMPT } from '../ai/prompt';
-import { QuizFromTopicRequest, QuizItemsJson, QuizAttemptRequest, ErrorCode } from '@ai-learning/shared';
+import {
+  QuizFromTopicRequest,
+  QuizItemsJson,
+  QuizAttemptRequest,
+  QuizExplainRequest,
+  ErrorCode,
+} from '@ai-learning/shared';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../db/schema';
 import { eq } from 'drizzle-orm';
@@ -109,18 +116,17 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
         let aiExplanation: string | undefined;
         if (!correct) {
           const correctText = it.options[it.answerIdx] ?? '';
-          // Explain path uses the same cascade (parse errors are tolerated —
-          // we just fall back to the static explanation). Never throw 5xx here.
-          const exp = await chatJson(c.env, 'explain', {
+          // In-flight per-item explain. Uses the unified helper with cache.
+          const exp = await myChat(c.env, 'explain', {
             system: 'You are an English tutor. Output only the explanation text, no preamble.',
             messages: [{ role: 'user', content: EXPLAIN_PROMPT(it.prompt, correctText) }],
             maxTokens: 200,
             temperature: 0.3,
-          }, (raw) => raw as string).catch((e) => {
+          }, { kind: 'explanation', authoritative: true }).catch((e) => {
             console.warn('explain_fallback', { route: 'explain', err: String(e) });
             return null;
           });
-          aiExplanation = exp?.parsed ? String(exp.parsed).slice(0, 600) : it.explanation;
+          aiExplanation = exp ? exp.text.slice(0, 600) : it.explanation;
         }
         await db.insert(schema.attemptItem).values({
           id: crypto.randomUUID(),
@@ -135,6 +141,83 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
 
       await db.update(schema.quizAttempt).set({ score, finishedAt: new Date() }).where(eq(schema.quizAttempt.id, attemptId));
       return c.json({ attemptId, score, total: dbItems.length, results });
+    } catch (e) {
+      const friendly = cascadeError(c, e);
+      if (friendly) return friendly;
+      return handleError(c, e);
+    }
+  })
+
+  /**
+   * Independent per-question explain endpoint. Called by the quiz reveal
+   * (Phase 0) when the learner hits "Check". Cached in D1 so repeated
+   * explanations on the same (question, picked answer, level) don't burn
+   * free-tier quota.
+   */
+  .post('/api/quiz/explain', requireAuth, async (c) => {
+    try {
+      const rl = await rateLimit(c, 'aiExplain');
+      if (rl) return rl;
+      const body = QuizExplainRequest.parse(await c.req.json());
+
+      const db = drizzle(c.env.DB, { schema });
+      const item = await db
+        .select()
+        .from(schema.quizItem)
+        .where(eq(schema.quizItem.id, body.itemId))
+        .limit(1)
+        .all();
+      const row = item[0];
+      if (!row || row.quizId !== body.quizId) {
+        return c.json({ code: ErrorCode.NotFound, message: 'Question not found' }, 404);
+      }
+      const correctText = row.options[row.answerIdx] ?? '';
+      const pickedText = row.options[body.pickedIdx] ?? '';
+      const isCorrect = row.answerIdx === body.pickedIdx;
+
+      // Stable cache key per (question, picked answer, level).
+      const key = await cacheKey([
+        'explain',
+        body.itemId,
+        body.pickedIdx,
+        body.level,
+      ]);
+
+      const out = await myChat(
+        c.env,
+        'quizExplain',
+        {
+          system:
+            'You are an English tutor. In ≤ 60 words: why the correct answer is correct, why the learner\'s choice is wrong if it was, give a simple rule, give one more example. English only.',
+          messages: [
+            {
+              role: 'user',
+              content: `Level: ${body.level}\nQuestion: ${row.prompt}\nCorrect: ${correctText}\nLearner picked: ${pickedText}\nResult: ${isCorrect ? 'correct' : 'wrong'}`,
+            },
+          ],
+          maxTokens: 220,
+          temperature: 0.3,
+        },
+        { kind: 'explanation', authoritative: true },
+      );
+
+      // Cache by hand here using the stable key — myChat's auto-key would
+      // include the dynamic picked text, but the pickedIdx is the only
+      // variable that matters semantically.
+      const { cachePut } = await import('../lib/aicache');
+      await cachePut(c.env, key, 'explanation', {
+        text: out.text,
+        provider: out.provider,
+        model: out.model,
+        tokens: out.tokens,
+      }, 14 * 24 * 60 * 60);
+
+      return c.json({
+        explanation: out.text.slice(0, 600),
+        model: out.model,
+        provider: out.provider,
+        cached: false,
+      });
     } catch (e) {
       const friendly = cascadeError(c, e);
       if (friendly) return friendly;

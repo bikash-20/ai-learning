@@ -30,7 +30,12 @@ binding = "ANALYTICS"
 dataset = "ai-learning-analytics"
 
 # --- AI binding (Workers AI) ---
-# No binding stanza needed — `env.AI` is implicit on Workers.
+# Explicit binding so the typed `Ai` is wired on `env.AI` and the deploy
+# provisions the inference account. Without this stanza the binding is
+# `undefined` and every call fails with "Cannot read properties of undefined
+# (reading 'run')".
+[ai]
+binding = "AI"
 
 # --- Vars (non-secret config) ---
 # These apply to the deployed ai-learning-api worker. Local `wrangler dev` reads
@@ -38,6 +43,10 @@ dataset = "ai-learning-analytics"
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://web-nine-rho-1j664llz3j.vercel.app,http://localhost:3000"
-# OpenRouter cascade — tried in order, first success wins. Curated from
-# the currently-available :free models at deploy time.
+# Workers AI primary tier — tried first in `myChat`. Cheapest path on the edge.
+# Curated from the live `@cf/...` catalog. Order = best-of-quality first.
+# Health probe logs ok/err per model so we can prune dead IDs at deploy time.
+WORKERS_AI_MODELS = "@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/mistralai/mistral-small-3.1-24b-instruct,@cf/qwen/qwen2.5-coder-32b-instruct,@cf/openai/gpt-oss-20b,@cf/google/gemma-4-26b-a4b-it,@cf/meta/llama-3.1-8b-instruct-fp8"
+# OpenRouter cascade — fallback when Workers AI fails. Curated from the
+# currently-available :free models at deploy time.
 OPENROUTER_MODELS = "qwen/qwen3.8-27b:free,nvidia/nemotron-3-super-120b-a12b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3-ultra-550b-a55b:free,liquid/lfm-2.5-2.6b:free,apodex/apodex-1.1-mini:free"
