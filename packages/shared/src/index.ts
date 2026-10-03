@@ -281,4 +281,41 @@ export type UserPrefsT = z.infer<typeof UserPrefs>;
 
 export const UserPrefsPatch = UserPrefs.partial();
 export type UserPrefsPatchT = z.infer<typeof UserPrefsPatch>;
+
+// ---------- Progress (per-user analytics) ----------
+export const ProgressByLevel = z.record(
+  z.string(), // 'A2' | 'B1' | 'B2' | 'C1'
+  z.object({ correct: z.number().int().nonnegative(), total: z.number().int().nonnegative() }),
+);
+export type ProgressByLevelT = z.infer<typeof ProgressByLevel>;
+
+export const ProgressTopicStat = z.object({
+  topic: z.string(),
+  correct: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  pct: z.number(),
+});
+export type ProgressTopicStatT = z.infer<typeof ProgressTopicStat>;
+
+export const ProgressRecent = z.object({
+  quizId: z.string().uuid(),
+  topic: z.string(),
+  level: Level,
+  score: z.number().int().nonnegative(),
+  total: z.number().int().positive(),
+  finishedAt: z.number().nullable(),
+});
+export type ProgressRecentT = z.infer<typeof ProgressRecent>;
+
+export const Progress = z.object({
+  totalAttempts: z.number().int().nonnegative(),
+  totalItems: z.number().int().nonnegative(),
+  totalCorrect: z.number().int().nonnegative(),
+  accuracy: z.number(), // 0..1
+  byLevel: ProgressByLevel,
+  weak: z.array(ProgressTopicStat),
+  best: z.array(ProgressTopicStat),
+  recent: z.array(ProgressRecent),
+});
+export type ProgressT = z.infer<typeof Progress>;
 export type ExamTemplate = z.infer<typeof ExamTemplate>;
