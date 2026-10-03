@@ -1,6 +1,8 @@
 # Quantara
 live: https://web-nine-rho-1j664llz3j.vercel.app/
-<img width="1280" height="755" alt="image" src="https://github.com/user-attachments/assets/54573ae2-4fa9-417c-b23d-05e3b0eea18e" />
+<img width="1280" height="767" alt="image" src="https://github.com/user-attachments/assets/519fcd40-bd65-492f-9575-2714cb167a10" />
+<img width="1280" height="767" alt="image" src="https://github.com/user-attachments/assets/48457f1d-eaa1-4112-9dda-c4d2067e5647" />
+
 
 
 AI-powered English practice platform (IELTS, grammar, vocabulary).
