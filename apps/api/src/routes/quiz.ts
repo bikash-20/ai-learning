@@ -8,7 +8,6 @@ import { QUIZ_GEN_PROMPT, EXPLAIN_PROMPT } from '../ai/prompt';
 import { QuizFromTopicRequest, QuizItemsJson, QuizAttemptRequest, ErrorCode } from '@ai-learning/shared';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../db/schema';
-import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 
 export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
@@ -27,7 +26,7 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
       const items = parsed.items;
       if (items.length === 0) return c.json({ code: ErrorCode.AIInvalid, message: 'No items generated' }, 502);
 
-      const quizId = randomUUID();
+      const quizId = crypto.randomUUID();
       const db = drizzle(c.env.DB, { schema });
       await db.insert(schema.quiz).values({
         id: quizId,
@@ -36,10 +35,10 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
         topic: body.topic,
         level: body.level,
       });
-      const itemIds = items.map(() => randomUUID());
+      const itemIds = items.map(() => crypto.randomUUID());
       await db.insert(schema.quizItem).values(
         items.map((it, i) => ({
-          id: itemIds[i],
+          id: itemIds[i]!,
           quizId,
           prompt: it.prompt,
           options: it.options,
@@ -47,7 +46,7 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
           explanation: it.explanation,
         })),
       );
-      const itemsWithId = items.map((it, i) => ({ id: itemIds[i], ...it }));
+      const itemsWithId = items.map((it, i) => ({ id: itemIds[i]!, ...it }));
       return c.json({ quizId, items: itemsWithId, provider: out.provider, model: out.model });
     } catch (e) {
       return handleError(c, e);
@@ -61,7 +60,7 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
       const dbItems = await db.select().from(schema.quizItem).where(eq(schema.quizItem.quizId, body.quizId));
       if (dbItems.length === 0) return c.json({ code: ErrorCode.NotFound, message: 'Quiz not found' }, 404);
 
-      const attemptId = randomUUID();
+      const attemptId = crypto.randomUUID();
       const userId = c.get('userId');
       const results: Array<{ itemId: string; correct: boolean; correctIdx: number; aiExplanation?: string }> = [];
       let score = 0;
@@ -85,7 +84,7 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
           aiExplanation = exp?.parsed ? String(exp.parsed).slice(0, 600) : it.explanation;
         }
         await db.insert(schema.attemptItem).values({
-          id: randomUUID(),
+          id: crypto.randomUUID(),
           attemptId,
           itemId: it.id,
           picked: ans.picked,

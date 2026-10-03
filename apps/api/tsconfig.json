@@ -2,12 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
-    "types": ["@cloudflare/workers-types", "vite/client"],
+    "types": ["@cloudflare/workers-types"],
     "jsx": "react-jsx",
     "paths": {
       "@ai-learning/shared": ["../../packages/shared/src/index.ts"]
     }
   },
-  "include": ["src/**/*", "scripts/**/*", "drizzle.config.ts"]
+  "include": ["src/**/*", "drizzle.config.ts"]
 }

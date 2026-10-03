@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 // ---------- Better Auth tables ----------
@@ -49,49 +49,37 @@ export const verification = sqliteTable('verification', {
 });
 
 // ---------- Authored content ----------
-export const vocab = sqliteTable(
-  'vocab',
-  {
-    id: text('id').primaryKey(),
-    word: text('word').notNull(),
-    pos: text('pos').notNull(),
-    definition: text('definition').notNull(),
-    examples: text('examples', { mode: 'json' }).$type<string[]>().notNull(),
-    tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
-    level: text('level').notNull(),
-    createdBy: text('created_by').references(() => user.id),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-  },
-  (t) => [uniqueIndex('vocab_word_idx').on(t.word), index('vocab_level_idx').on(t.level)],
-);
+export const vocab = sqliteTable('vocab', {
+  id: text('id').primaryKey(),
+  word: text('word').notNull(),
+  pos: text('pos').notNull(),
+  definition: text('definition').notNull(),
+  examples: text('examples', { mode: 'json' }).$type<string[]>().notNull(),
+  tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+  level: text('level').notNull(),
+  createdBy: text('created_by').references(() => user.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
 
-export const grammar = sqliteTable(
-  'grammar',
-  {
-    id: text('id').primaryKey(),
-    topic: text('topic').notNull(),
-    level: text('level').notNull(),
-    explanation: text('explanation').notNull(),
-    examples: text('examples', { mode: 'json' }).$type<string[]>().notNull(),
-    createdBy: text('created_by').references(() => user.id),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-  },
-  (t) => [index('grammar_level_idx').on(t.level)],
-);
+export const grammar = sqliteTable('grammar', {
+  id: text('id').primaryKey(),
+  topic: text('topic').notNull(),
+  level: text('level').notNull(),
+  explanation: text('explanation').notNull(),
+  examples: text('examples', { mode: 'json' }).$type<string[]>().notNull(),
+  createdBy: text('created_by').references(() => user.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
 
 // ---------- Quiz ----------
-export const quiz = sqliteTable(
-  'quiz',
-  {
-    id: text('id').primaryKey(),
-    ownerId: text('owner_id').references(() => user.id, { onDelete: 'set null' }),
-    source: text('source', { enum: ['manual', 'pdf', 'ai'] }).notNull(),
-    topic: text('topic').notNull(),
-    level: text('level').notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-  },
-  (t) => [index('quiz_topic_idx').on(t.topic, t.level)],
-);
+export const quiz = sqliteTable('quiz', {
+  id: text('id').primaryKey(),
+  ownerId: text('owner_id').references(() => user.id, { onDelete: 'set null' }),
+  source: text('source', { enum: ['manual', 'pdf', 'ai'] }).notNull(),
+  topic: text('topic').notNull(),
+  level: text('level').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});
 
 export const quizItem = sqliteTable('quiz_item', {
   id: text('id').primaryKey(),
@@ -167,17 +155,13 @@ export const examAttempt = sqliteTable('exam_attempt', {
 });
 
 // ---------- Chat (for history + cost) ----------
-export const chatMessage = sqliteTable(
-  'chat_message',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-    role: text('role', { enum: ['user', 'assistant', 'system'] }).notNull(),
-    content: text('content').notNull(),
-    provider: text('provider', { enum: ['workers', 'openrouter'] }),
-    model: text('model'),
-    tokens: integer('tokens'),
-    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-  },
-  (t) => [index('chat_msg_user_idx').on(t.userId, t.createdAt)],
-);
+export const chatMessage = sqliteTable('chat_message', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  role: text('role', { enum: ['user', 'assistant', 'system'] }).notNull(),
+  content: text('content').notNull(),
+  provider: text('provider', { enum: ['workers', 'openrouter'] }),
+  model: text('model'),
+  tokens: integer('tokens'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+});

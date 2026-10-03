@@ -9,7 +9,6 @@ import { ChatRequest, ErrorCode } from '@ai-learning/shared';
 import { drizzle } from 'drizzle-orm/d1';
 import { eq } from 'drizzle-orm';
 import * as schema from '../db/schema';
-import { randomUUID } from 'node:crypto';
 
 const enc = new TextEncoder();
 
@@ -27,8 +26,8 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
 
       const userId = c.get('userId');
       const db = drizzle(c.env.DB, { schema });
-      const last = body.messages[body.messages.length - 1];
-      const userMsgId = randomUUID();
+      const last = body.messages.at(-1)!;
+      const userMsgId = crypto.randomUUID();
       await db.insert(schema.chatMessage).values({
         id: userMsgId,
         userId,
@@ -105,7 +104,7 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
             }
             // Persist assistant message and emit done
             await db.insert(schema.chatMessage).values({
-              id: randomUUID(),
+              id: crypto.randomUUID(),
               userId,
               role: 'assistant',
               content: fullText,

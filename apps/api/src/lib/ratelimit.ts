@@ -9,11 +9,12 @@ const BUCKETS = {
   quizGen: { limit: 20, windowMs: 60 * 60_000 },       // 20/hour
 } as const;
 
-export const rateLimit = async (c: Context<{ Bindings: Env; Variables: { userId: string } }>, route: keyof typeof BUCKETS) => {
+export const rateLimit = async (c: Context, route: keyof typeof BUCKETS) => {
   const cfg = BUCKETS[route];
-  const userId = c.get('userId');
-  const id = c.env.RATE_LIMITER.idFromName(userId);
-  const stub = c.env.RATE_LIMITER.get(id) as DurableObjectStub & {
+  const env = (c as { env: Env }).env;
+  const userId = (c.get as (k: string) => string)('userId');
+  const id = env.RATE_LIMITER.idFromName(userId);
+  const stub = env.RATE_LIMITER.get(id) as DurableObjectStub & {
     check: (route: string, limit: number, windowMs: number) => Promise<{ ok: true } | { ok: false; remaining: number; resetAt: number }>;
     remaining: (route: string, limit: number) => Promise<{ remaining: number; resetAt: number }>;
   };
@@ -30,20 +31,22 @@ export const rateLimit = async (c: Context<{ Bindings: Env; Variables: { userId:
   return null;
 };
 
-export const idemMiddleware = async (c: Context<{ Bindings: Env }>): Promise<Response | null> => {
+export const idemMiddleware = async (c: Context): Promise<Response | null> => {
   const key = c.req.header('Idempotency-Key');
   if (!key) return null;
-  const id = c.env.RATE_LIMITER.idFromName('global-idem');
-  const stub = c.env.RATE_LIMITER.get(id) as DurableObjectStub & {
+  const env = (c as { env: Env }).env;
+  const id = env.RATE_LIMITER.idFromName('global-idem');
+  const stub = env.RATE_LIMITER.get(id) as DurableObjectStub & {
     idemGet: (k: string) => Promise<{ status: number; body: string } | null>;
   };
   const cached = await stub.idemGet(key);
   return cached ? new Response(cached.body, { status: cached.status, headers: { 'Idempotent-Replay': 'true' } }) : null;
 };
 
-export const idemStore = async (c: Context<{ Bindings: Env }>, key: string, status: number, body: string) => {
-  const id = c.env.RATE_LIMITER.idFromName('global-idem');
-  const stub = c.env.RATE_LIMITER.get(id) as DurableObjectStub & {
+export const idemStore = async (c: Context, key: string, status: number, body: string) => {
+  const env = (c as { env: Env }).env;
+  const id = env.RATE_LIMITER.idFromName('global-idem');
+  const stub = env.RATE_LIMITER.get(id) as DurableObjectStub & {
     idemPut: (k: string, s: number, b: string) => Promise<void>;
   };
   await stub.idemPut(key, status, body);
