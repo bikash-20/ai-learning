@@ -11,6 +11,8 @@ const BUCKETS = {
   aiExplain: { limit: 50, windowMs: 60 * 60_000 },     // 50/hour (per-check /api/quiz/explain)
   flashcardsGen: { limit: 10, windowMs: 60 * 60_000 }, // 10/hour (create deck)
   flashcardsReview: { limit: 200, windowMs: 60 * 60_000 }, // 200/hour (review cards)
+  flashcardsExplain: { limit: 50, windowMs: 60 * 60_000 }, // 50/hour (card hint + explain)
+  flashcardsAddMore: { limit: 10, windowMs: 60 * 60_000 }, // 10/hour (add-more on existing deck)
 } as const;
 
 export type RateBucket = keyof typeof BUCKETS;

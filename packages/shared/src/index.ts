@@ -353,6 +353,12 @@ export const FlashCard = z.object({
   id: z.string().uuid(),
   front: z.string().min(1),
   back: z.string().min(1),
+  /** Optional hint that nudges without revealing the answer. */
+  hint: z.string().max(200).optional(),
+  /** Optional short AI explanation shown on the back / via AI Explain. */
+  explanation: z.string().max(600).optional(),
+  tags: z.array(z.string().min(1).max(40)).max(8).default([]),
+  difficulty: z.enum(['easy', 'hard']).optional(),
   srsState: SrsState,
 });
 export type FlashCardT = z.infer<typeof FlashCard>;
@@ -375,9 +381,119 @@ export const FlashDeckCreate = z.object({
   cards: z.array(z.object({
     front: z.string().min(1).max(200),
     back: z.string().min(1).max(400),
+    hint: z.string().max(200).optional(),
+    explanation: z.string().max(600).optional(),
+    tags: z.array(z.string().min(1).max(40)).max(8).default([]),
+    difficulty: z.enum(['easy', 'hard']).default('easy'),
   })).min(1).max(50),
+  /** 'manual' (default) or 'ai'. Distinguishes the source on the deck list. */
+  source: z.enum(['manual', 'ai']).default('manual'),
+  /** Optional AI metadata: {provider, model, generatedAt}. Only set when
+   *  source === 'ai'. Stored verbatim on the deck as JSON for traceability. */
+  aiMeta: z.object({
+    provider: z.enum(['workers', 'openrouter']),
+    model: z.string(),
+    generatedAt: z.number().int().positive(),
+  }).optional(),
 });
 export type FlashDeckCreateT = z.infer<typeof FlashDeckCreate>;
+
+// ---------- AI deck generation (preview before save) ----------
+
+/** One card shape returned by the AI. Front/back + optional helpers. */
+export const FlashCardGen = z.object({
+  front: z.string().min(1).max(200),
+  back: z.string().min(1).max(400),
+  /** Nudge that does NOT reveal the answer. */
+  hint: z.string().max(200).optional(),
+  /** One-sentence plain explanation of the back. */
+  explanation: z.string().max(600).optional(),
+  tags: z.array(z.string().min(1).max(40)).max(8).default([]),
+  difficulty: z.enum(['easy', 'hard']).default('easy'),
+});
+export type FlashCardGenT = z.infer<typeof FlashCardGen>;
+
+/** Request body for POST /api/flashcards/decks/generate and add-more. */
+export const FlashDeckGenRequest = z.object({
+  topic: z.string().min(1).max(80),
+  level: Level,
+  n: z.number().int().min(1).max(30),
+  language: z.enum(['en', 'bn', 'bn-en']).default('en'),
+  /** Optional source text — every card MUST be derived from this text only. */
+  sourceText: z.string().min(80).max(3000).optional(),
+  difficulty: z.enum(['easy', 'hard']).default('easy'),
+});
+export type FlashDeckGenRequestT = z.infer<typeof FlashDeckGenRequest>;
+
+/** Strict schema for the AI's JSON output. Used by chatJson parse step. */
+export const FlashDeckGenJson = z.object({
+  title: z.string().min(1).max(80),
+  cards: z.array(FlashCardGen).min(1).max(30),
+});
+export type FlashDeckGenJsonT = z.infer<typeof FlashDeckGenJson>;
+
+/** Response from the generate endpoint — preview only, nothing persisted. */
+export const FlashDeckGenResponse = FlashDeckGenJson.extend({
+  provider: z.enum(['workers', 'openrouter']),
+  model: z.string(),
+  cached: z.boolean(),
+});
+export type FlashDeckGenResponseT = z.infer<typeof FlashDeckGenResponse>;
+
+/** Add more cards to an existing deck (excludes cards already present). */
+export const FlashDeckAddMoreRequest = FlashDeckGenRequest.extend({
+  /** Optional fronts to de-dupe against (case-insensitive, trimmed). */
+  excludeFronts: z.array(z.string().min(1).max(200)).max(50).optional(),
+});
+export type FlashDeckAddMoreRequestT = z.infer<typeof FlashDeckAddMoreRequest>;
+
+/** Rename / re-topic a deck. */
+export const FlashDeckPatch = z.object({
+  title: z.string().min(1).max(80).optional(),
+  topic: z.string().min(1).max(80).optional(),
+}).refine((v) => v.title !== undefined || v.topic !== undefined, {
+  message: 'Provide at least one of title or topic',
+});
+export type FlashDeckPatchT = z.infer<typeof FlashDeckPatch>;
+
+/** Import a deck from JSON or CSV. The data field is the raw string. */
+export const FlashDeckImportRequest = z.object({
+  format: z.enum(['json', 'csv']),
+  data: z.string().min(1).max(200_000),
+  title: z.string().min(1).max(80).optional(),
+  topic: z.string().min(1).max(80).optional(),
+  source: z.enum(['manual', 'ai']).default('manual'),
+});
+export type FlashDeckImportRequestT = z.infer<typeof FlashDeckImportRequest>;
+
+// ---------- Card-level AI helpers (hint + explain) ----------
+
+export const FlashHintRequest = z.object({
+  level: Level.optional(),
+});
+export type FlashHintRequestT = z.infer<typeof FlashHintRequest>;
+
+export const FlashHintResponse = z.object({
+  hint: z.string(),
+  cached: z.boolean(),
+  model: z.string(),
+});
+export type FlashHintResponseT = z.infer<typeof FlashHintResponse>;
+
+export const FlashExplainRequest = z.object({
+  depth: z.enum(['normal', 'simpler', 'deeper']).default('normal'),
+  level: Level.default('B2'),
+});
+export type FlashExplainRequestT = z.infer<typeof FlashExplainRequest>;
+
+export const FlashExplainResponse = z.object({
+  explanation: z.string(),
+  model: z.string(),
+  provider: z.enum(['workers', 'openrouter']),
+  cached: z.boolean(),
+  depth: z.enum(['normal', 'simpler', 'deeper']),
+});
+export type FlashExplainResponseT = z.infer<typeof FlashExplainResponse>;
 
 export const FlashReview = z.object({
   /** 0=Again, 1=Hard, 2=Good, 3=Easy */

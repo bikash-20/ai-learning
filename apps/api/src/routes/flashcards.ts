@@ -1,18 +1,66 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { Env } from '../env';
 import { requireAuth } from '../lib/requireAuth';
 import { rateLimit } from '../lib/ratelimit';
 import { handleError } from '../lib/errors';
+import { chatJson, myChat } from '../ai/provider';
+import {
+  FLASHCARD_GEN_PROMPT,
+  FLASHCARD_HINT_PROMPT,
+  FLASHCARD_EXPLAIN_PROMPT,
+} from '../ai/prompt';
+import {
+  AllUpstreamError,
+  JsonCascadeError,
+  UpstreamAuthError,
+} from '../ai/cascade';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../db/schema';
 import { eq, sql } from 'drizzle-orm';
 import {
   FlashDeckCreate,
+  FlashDeckGenRequest,
+  FlashDeckGenJson,
+  FlashDeckAddMoreRequest,
+  FlashDeckPatch,
+  FlashDeckImportRequest,
   FlashReview,
+  FlashHintRequest,
+  FlashExplainRequest,
   SrsState,
   type SrsStateT,
+  type FlashCardGenT,
+  type FlashDeckGenJsonT,
+  type FlashDeckGenResponseT,
   ErrorCode,
+  Level,
 } from '@quantara/shared';
+
+type Ctx = Context<{ Bindings: Env; Variables: { userId: string } }>;
+
+/**
+ * Map every cascade-level failure to a friendly, CORS-stamped JSON response.
+ * Returns `null` when the failure isn't cascade-related (let `handleError`
+ * deal with it).
+ */
+const cascadeError = (c: Ctx, e: unknown): Response | null => {
+  if (e instanceof UpstreamAuthError) {
+    return c.json({ code: ErrorCode.UpstreamAuth, message: 'AI provider authentication failed.' }, 502);
+  }
+  if (e instanceof JsonCascadeError) {
+    return c.json(
+      { code: ErrorCode.AIInvalid, message: "We couldn't generate flashcards right now — please try again." },
+      502,
+    );
+  }
+  if (e instanceof AllUpstreamError) {
+    return c.json(
+      { code: ErrorCode.UpstreamUnavailable, message: e.message, details: { cause: e.cause } },
+      503,
+    );
+  }
+  return null;
+};
 
 /**
  * Simplified SM-2 step:
@@ -43,7 +91,6 @@ const srsStep = (cur: SrsStateT, grade: 0 | 1 | 2 | 3): SrsStateT => {
       intervalDays = Math.max(1, cur.intervalDays * ease * 1.3);
       break;
   }
-  // Floor the new ease so we don't drift too high.
   if (ease < 1.3) ease = 1.3;
   if (ease > 3.0) ease = 3.0;
   return {
@@ -54,6 +101,95 @@ const srsStep = (cur: SrsStateT, grade: 0 | 1 | 2 | 3): SrsStateT => {
 };
 
 const XP_BY_GRADE = [0, 1, 3, 6] as const;
+const initialSrs = (): SrsStateT => ({ intervalDays: 0, ease: 2.5, dueAt: Date.now() });
+
+/** Tag list helper — defends against null/empty cells from old rows. */
+const parseTags = (raw: string | null | undefined): string[] => {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((s) => typeof s === 'string') : [];
+  } catch {
+    return [];
+  };
+};
+
+/** Escape a value for CSV output (RFC 4180-ish). */
+const csvCell = (v: unknown): string => {
+  const s = v === undefined || v === null ? '' : String(v);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
+
+/** Parse CSV text into an array of {front, back, hint, explanation, tags, difficulty}.
+ *  Headers are case-insensitive. Missing columns become empty. */
+const parseCsv = (text: string): FlashCardGenT[] => {
+  const rows: string[][] = [];
+  let cur: string[] = [];
+  let buf = '';
+  let inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      if (ch === '"' && text[i + 1] === '"') {
+        buf += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuote = false;
+      } else {
+        buf += ch;
+      }
+    } else if (ch === '"') {
+      inQuote = true;
+    } else if (ch === ',') {
+      cur.push(buf);
+      buf = '';
+    } else if (ch === '\n') {
+      cur.push(buf);
+      rows.push(cur);
+      cur = [];
+      buf = '';
+    } else if (ch === '\r') {
+      // ignore — handled by \n
+    } else {
+      buf += ch;
+    }
+  }
+  if (buf.length > 0 || cur.length > 0) {
+    cur.push(buf);
+    rows.push(cur);
+  }
+  if (rows.length === 0) return [];
+  const header = rows[0]!.map((h) => h.trim().toLowerCase());
+  const idx = (name: string) => header.indexOf(name);
+  const fIdx = idx('front');
+  const bIdx = idx('back');
+  const hIdx = idx('hint');
+  const eIdx = idx('explanation');
+  const tIdx = idx('tags');
+  const dIdx = idx('difficulty');
+  const out: FlashCardGenT[] = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]!;
+    if (row.length === 1 && row[0] === '') continue;
+    const front = (row[fIdx] ?? '').trim();
+    const back = (row[bIdx] ?? '').trim();
+    if (!front || !back) continue;
+    const tagsRaw = tIdx >= 0 ? (row[tIdx] ?? '').trim() : '';
+    const tags = tagsRaw ? tagsRaw.split(/[;,]/).map((s) => s.trim()).filter(Boolean) : [];
+    const diffRaw = (dIdx >= 0 ? (row[dIdx] ?? '') : '').trim().toLowerCase();
+    const difficulty: 'easy' | 'hard' = diffRaw === 'hard' ? 'hard' : 'easy';
+    out.push({
+      front,
+      back,
+      hint: hIdx >= 0 ? (row[hIdx] ?? '').trim() || undefined : undefined,
+      explanation: eIdx >= 0 ? (row[eIdx] ?? '').trim() || undefined : undefined,
+      tags: tags.slice(0, 8),
+      difficulty,
+    });
+  }
+  return out;
+};
 
 export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
   /** List decks for the signed-in user with counts. */
@@ -96,7 +232,49 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
     }
   })
 
-  /** Create a deck with N cards in one shot. */
+  /** AI deck preview. Calls chatJson cascade, returns the parsed result,
+   *  stamps X-Model-Used, and does NOT persist anything. */
+  .post('/api/flashcards/decks/generate', requireAuth, async (c) => {
+    try {
+      const rl = await rateLimit(c, 'flashcardsGen');
+      if (rl) return rl;
+      const body = FlashDeckGenRequest.parse(await c.req.json());
+      const system = FLASHCARD_GEN_PROMPT(
+        body.topic,
+        body.level,
+        body.n,
+        body.language,
+        body.sourceText,
+        body.difficulty,
+      );
+      const { parsed, out } = await chatJson<FlashDeckGenJsonT>(
+        c.env,
+        'flashcardsGen',
+        {
+          system,
+          messages: [{ role: 'user', content: `Generate ${body.n} flashcards on "${body.topic}".` }],
+          temperature: 0.5,
+          maxTokens: 4096,
+        },
+        (raw) => FlashDeckGenJson.parse(raw),
+      );
+      c.header('X-Model-Used', out.model);
+      const resp: FlashDeckGenResponseT = {
+        title: parsed.title,
+        cards: parsed.cards,
+        provider: out.provider,
+        model: out.model,
+        cached: !!out.cached,
+      };
+      return c.json(resp);
+    } catch (e) {
+      const ce = cascadeError(c, e);
+      if (ce) return ce;
+      return handleError(c, e);
+    }
+  })
+
+  /** Create a deck with N cards in one shot. Now accepts source + aiMeta. */
   .post('/api/flashcards/decks', requireAuth, async (c) => {
     try {
       const rl = await rateLimit(c, 'flashcardsGen');
@@ -105,25 +283,315 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
       const db = drizzle(c.env.DB, { schema });
       const userId = c.get('userId');
       const deckId = crypto.randomUUID();
-      const now = new Date();
       await db.insert(schema.flashDeck).values({
         id: deckId,
         ownerId: userId,
         title: body.title,
         topic: body.topic,
-        source: 'manual',
+        source: body.source ?? 'manual',
       });
-      const initialSrs: SrsStateT = { intervalDays: 0, ease: 2.5, dueAt: now.getTime() };
+      const initial = initialSrs();
+      const rows = body.cards.map((card) => ({
+        id: crypto.randomUUID(),
+        deckId,
+        front: card.front.trim(),
+        back: card.back.trim(),
+        hint: card.hint?.trim() || null,
+        explanation: card.explanation?.trim() || null,
+        tags: JSON.stringify(card.tags ?? []),
+        difficulty: card.difficulty ?? 'easy',
+        aiMeta: body.aiMeta ? JSON.stringify(body.aiMeta) : null,
+        srsState: initial,
+      }));
+      await db.insert(schema.flashCard).values(rows);
+      return c.json({ deckId, createdCount: rows.length });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  })
+
+  /** Add more AI-generated cards to an existing deck. The body must
+   *  include `topic` (the deck's topic — we don't trust the client to
+   *  override it). Excludes existing fronts. */
+  .post('/api/flashcards/decks/:id/cards/more', requireAuth, async (c) => {
+    try {
+      const rl = await rateLimit(c, 'flashcardsAddMore');
+      if (rl) return rl;
+      const body = FlashDeckAddMoreRequest.parse(await c.req.json());
+      const db = drizzle(c.env.DB, { schema });
+      const userId = c.get('userId');
+      const deckId = c.req.param('id')!;
+      const deckRows = await db.select().from(schema.flashDeck).where(eq(schema.flashDeck.id, deckId)).limit(1).all();
+      const deck = deckRows[0];
+      if (!deck || deck.ownerId !== userId) {
+        return c.json({ code: ErrorCode.NotFound, message: 'Deck not found' }, 404);
+      }
+      const existing = await db.select({ front: schema.flashCard.front }).from(schema.flashCard).where(eq(schema.flashCard.deckId, deckId)).all();
+      const existingFronts = new Set(existing.map((r) => r.front.trim().toLowerCase()));
+      for (const f of body.excludeFronts ?? []) existingFronts.add(f.trim().toLowerCase());
+
+      const system = FLASHCARD_GEN_PROMPT(
+        body.topic,
+        body.level,
+        body.n,
+        body.language,
+        body.sourceText,
+        body.difficulty,
+      );
+      const { parsed, out } = await chatJson<FlashDeckGenJsonT>(
+        c.env,
+        'flashcardsAddMore',
+        {
+          system,
+          messages: [{ role: 'user', content: `Generate ${body.n} more flashcards on "${body.topic}".` }],
+          temperature: 0.6,
+          maxTokens: 4096,
+        },
+        (raw) => FlashDeckGenJson.parse(raw),
+      );
+      c.header('X-Model-Used', out.model);
+
+      // De-dupe against existing fronts.
+      const fresh = parsed.cards.filter((card) => !existingFronts.has(card.front.trim().toLowerCase()));
+      const initial = initialSrs();
+      let inserted = 0;
+      if (fresh.length > 0) {
+        await db.insert(schema.flashCard).values(
+          fresh.map((card) => ({
+            id: crypto.randomUUID(),
+            deckId,
+            front: card.front.trim(),
+            back: card.back.trim(),
+            hint: card.hint?.trim() || null,
+            explanation: card.explanation?.trim() || null,
+            tags: JSON.stringify(card.tags ?? []),
+            difficulty: card.difficulty ?? 'easy',
+            aiMeta: JSON.stringify({ provider: out.provider, model: out.model, generatedAt: Date.now() }),
+            srsState: initial,
+          })),
+        );
+        inserted = fresh.length;
+      }
+      return c.json({ addedCount: inserted, generated: parsed.cards.length, provider: out.provider, model: out.model });
+    } catch (e) {
+      const ce = cascadeError(c, e);
+      if (ce) return ce;
+      return handleError(c, e);
+    }
+  })
+
+  /** Rename or re-topic a deck. */
+  .patch('/api/flashcards/decks/:id', requireAuth, async (c) => {
+    try {
+      const body = FlashDeckPatch.parse(await c.req.json());
+      const db = drizzle(c.env.DB, { schema });
+      const userId = c.get('userId');
+      const deckId = c.req.param('id')!;
+      const deckRows = await db.select().from(schema.flashDeck).where(eq(schema.flashDeck.id, deckId)).limit(1).all();
+      const deck = deckRows[0];
+      if (!deck || deck.ownerId !== userId) {
+        return c.json({ code: ErrorCode.NotFound, message: 'Deck not found' }, 404);
+      }
+      const patch: { title?: string; topic?: string } = {};
+      if (body.title !== undefined) patch.title = body.title;
+      if (body.topic !== undefined) patch.topic = body.topic;
+      await db.update(schema.flashDeck).set(patch).where(eq(schema.flashDeck.id, deckId));
+      return c.json({ ok: true, deck: { id: deckId, ...patch } });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  })
+
+  /** Delete a deck (cascade deletes its cards + reviews via FK). */
+  .delete('/api/flashcards/decks/:id', requireAuth, async (c) => {
+    try {
+      const db = drizzle(c.env.DB, { schema });
+      const userId = c.get('userId');
+      const deckId = c.req.param('id')!;
+      const deckRows = await db.select().from(schema.flashDeck).where(eq(schema.flashDeck.id, deckId)).limit(1).all();
+      const deck = deckRows[0];
+      if (!deck || deck.ownerId !== userId) {
+        return c.json({ code: ErrorCode.NotFound, message: 'Deck not found' }, 404);
+      }
+      await db.delete(schema.flashDeck).where(eq(schema.flashDeck.id, deckId));
+      return c.json({ ok: true });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  })
+
+  /** Reset SRS state for every card in a deck (intervalDays 0, ease 2.5, due now)
+   *  + delete the per-card review rows. */
+  .post('/api/flashcards/decks/:id/reset', requireAuth, async (c) => {
+    try {
+      const db = drizzle(c.env.DB, { schema });
+      const userId = c.get('userId');
+      const deckId = c.req.param('id')!;
+      const deckRows = await db.select().from(schema.flashDeck).where(eq(schema.flashDeck.id, deckId)).limit(1).all();
+      const deck = deckRows[0];
+      if (!deck || deck.ownerId !== userId) {
+        return c.json({ code: ErrorCode.NotFound, message: 'Deck not found' }, 404);
+      }
+      const initial = initialSrs();
+      // Reset srsState on every card in the deck.
+      await db
+        .update(schema.flashCard)
+        .set({ srsState: initial })
+        .where(eq(schema.flashCard.deckId, deckId));
+      // Wipe review rows for cards that belonged to this deck. Drizzle doesn't
+      // support multi-table delete easily; we grab the card ids first.
+      const cardIds = (await db
+        .select({ id: schema.flashCard.id })
+        .from(schema.flashCard)
+        .where(eq(schema.flashCard.deckId, deckId))
+        .all()).map((r) => r.id);
+      if (cardIds.length > 0) {
+        await db
+          .delete(schema.review)
+          .where(sql`${schema.review.cardId} IN (${sql.join(cardIds.map((id) => sql`${id}`), sql`, `)})`);
+      }
+      return c.json({ ok: true, resetCount: cardIds.length });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  })
+
+  /** Export a deck as JSON or CSV download. */
+  .get('/api/flashcards/decks/:id/export', requireAuth, async (c) => {
+    try {
+      const db = drizzle(c.env.DB, { schema });
+      const userId = c.get('userId');
+      const deckId = c.req.param('id')!;
+      const format = (c.req.query('format') ?? 'json').toLowerCase();
+      if (format !== 'json' && format !== 'csv') {
+        return c.json({ code: ErrorCode.BadRequest, message: 'format must be json or csv' }, 400);
+      }
+      const deckRows = await db.select().from(schema.flashDeck).where(eq(schema.flashDeck.id, deckId)).limit(1).all();
+      const deck = deckRows[0];
+      if (!deck || deck.ownerId !== userId) {
+        return c.json({ code: ErrorCode.NotFound, message: 'Deck not found' }, 404);
+      }
+      const cards = await db.select().from(schema.flashCard).where(eq(schema.flashCard.deckId, deckId)).all();
+      if (format === 'json') {
+        const body = JSON.stringify(
+          {
+            title: deck.title,
+            topic: deck.topic,
+            source: deck.source,
+            cards: cards.map((card) => ({
+              front: card.front,
+              back: card.back,
+              hint: card.hint ?? '',
+              explanation: card.explanation ?? '',
+              tags: parseTags(card.tags),
+              difficulty: card.difficulty ?? 'easy',
+            })),
+          },
+          null,
+          2,
+        );
+        return new Response(body, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Disposition': `attachment; filename="${deck.title.replace(/[^a-z0-9-_ ]/gi, '_')}.json"`,
+          },
+        });
+      }
+      // CSV
+      const lines: string[] = ['front,back,hint,explanation,tags,difficulty'];
+      for (const card of cards) {
+        const tags = parseTags(card.tags).join(';');
+        lines.push(
+          [
+            csvCell(card.front),
+            csvCell(card.back),
+            csvCell(card.hint ?? ''),
+            csvCell(card.explanation ?? ''),
+            csvCell(tags),
+            csvCell(card.difficulty ?? 'easy'),
+          ].join(','),
+        );
+      }
+      const body = lines.join('\n');
+      return new Response(body, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${deck.title.replace(/[^a-z0-9-_ ]/gi, '_')}.csv"`,
+        },
+      });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  })
+
+  /** Import a deck from JSON or CSV. The body carries the raw text payload. */
+  .post('/api/flashcards/decks/import', requireAuth, async (c) => {
+    try {
+      const rl = await rateLimit(c, 'flashcardsGen');
+      if (rl) return rl;
+      const body = FlashDeckImportRequest.parse(await c.req.json());
+      let cards: FlashCardGenT[];
+      let inferredTitle: string | undefined;
+      let inferredTopic: string | undefined;
+      try {
+        if (body.format === 'json') {
+          const parsed = JSON.parse(body.data);
+          if (Array.isArray(parsed)) {
+            cards = parsed as FlashCardGenT[];
+          } else {
+            cards = parsed.cards as FlashCardGenT[];
+            if (typeof parsed.title === 'string') inferredTitle = parsed.title;
+            if (typeof parsed.topic === 'string') inferredTopic = parsed.topic;
+          }
+        } else {
+          cards = parseCsv(body.data);
+        }
+      } catch {
+        return c.json({ code: ErrorCode.BadRequest, message: 'Could not parse ' + body.format + ' payload' }, 400);
+      }
+      if (!Array.isArray(cards) || cards.length === 0) {
+        return c.json({ code: ErrorCode.BadRequest, message: 'No cards found in payload' }, 400);
+      }
+      // Validate via Zod (one at a time so a single bad card rejects the
+      // whole import — caller wanted "either all good or none").
+      const validated: FlashCardGenT[] = [];
+      for (const raw of cards) {
+        const v = FlashDeckGenJson.shape.cards.element.safeParse(raw);
+        if (!v.success) {
+          return c.json({ code: ErrorCode.ValidationError, message: 'Invalid card: ' + v.error.message }, 400);
+        }
+        validated.push(v.data);
+      }
+      const title = body.title ?? inferredTitle ?? 'Imported deck';
+      const topic = body.topic ?? inferredTopic ?? 'imported';
+      const db = drizzle(c.env.DB, { schema });
+      const userId = c.get('userId');
+      const deckId = crypto.randomUUID();
+      await db.insert(schema.flashDeck).values({
+        id: deckId,
+        ownerId: userId,
+        title,
+        topic,
+        source: body.source,
+      });
+      const initial = initialSrs();
       await db.insert(schema.flashCard).values(
-        body.cards.map((card) => ({
+        validated.map((card) => ({
           id: crypto.randomUUID(),
           deckId,
-          front: card.front,
-          back: card.back,
-          srsState: initialSrs,
+          front: card.front.trim(),
+          back: card.back.trim(),
+          hint: card.hint?.trim() || null,
+          explanation: card.explanation?.trim() || null,
+          tags: JSON.stringify(card.tags ?? []),
+          difficulty: card.difficulty ?? 'easy',
+          aiMeta: null,
+          srsState: initial,
         })),
       );
-      return c.json({ deckId, createdCount: body.cards.length });
+      return c.json({ deckId, createdCount: validated.length });
     } catch (e) {
       return handleError(c, e);
     }
@@ -141,7 +609,6 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
       }
       const cards = await db.select().from(schema.flashCard).where(eq(schema.flashCard.deckId, deckId)).all();
       const now = Date.now();
-      // Order: due-now first, then by dueAt asc, then by createdAt.
       cards.sort((a, b) => {
         const aDue = a.srsState.dueAt <= now ? 0 : 1;
         const bDue = b.srsState.dueAt <= now ? 0 : 1;
@@ -153,10 +620,101 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
           id: card.id,
           front: card.front,
           back: card.back,
+          hint: card.hint ?? undefined,
+          explanation: card.explanation ?? undefined,
+          tags: parseTags(card.tags),
+          difficulty: (card.difficulty ?? 'easy') as 'easy' | 'hard',
           srsState: card.srsState,
         })),
       );
     } catch (e) {
+      return handleError(c, e);
+    }
+  })
+
+  /** On-demand hint for a card. Persists back to flash_card.hint so future
+   *  reviews don't pay the AI cost again. */
+  .post('/api/flashcards/cards/:id/hint', requireAuth, async (c) => {
+    try {
+      const rl = await rateLimit(c, 'flashcardsExplain');
+      if (rl) return rl;
+      FlashHintRequest.parse(await c.req.json().catch(() => ({})));
+      const db = drizzle(c.env.DB, { schema });
+      const cardId = c.req.param('id')!;
+      const userId = c.get('userId');
+      const cardRows = await db.select().from(schema.flashCard).where(eq(schema.flashCard.id, cardId)).limit(1).all();
+      const card = cardRows[0];
+      if (!card) return c.json({ code: ErrorCode.NotFound, message: 'Card not found' }, 404);
+      // Ownership via deck.
+      const deckRows = await db.select().from(schema.flashDeck).where(eq(schema.flashDeck.id, card.deckId)).limit(1).all();
+      if (deckRows[0]?.ownerId !== userId) {
+        return c.json({ code: ErrorCode.Forbidden, message: 'Not your deck' }, 403);
+      }
+      // Already have a hint? return it without burning quota.
+      if (card.hint && card.hint.trim().length > 0) {
+        return c.json({ hint: card.hint, cached: true, model: 'stored' });
+      }
+      const system = FLASHCARD_HINT_PROMPT(card.front);
+      const out = await myChat(c.env, 'flashcardsHint', {
+        system,
+        messages: [{ role: 'user', content: card.front }],
+        maxTokens: 200,
+        temperature: 0.4,
+      });
+      c.header('X-Model-Used', out.model);
+      const hint = out.text.trim().slice(0, 200);
+      await db.update(schema.flashCard).set({ hint }).where(eq(schema.flashCard.id, cardId));
+      return c.json({ hint, cached: !!out.cached, model: out.model });
+    } catch (e) {
+      const ce = cascadeError(c, e);
+      if (ce) return ce;
+      return handleError(c, e);
+    }
+  })
+
+  /** AI Explain with depth. Cached by (cardId, depth) so the same depth
+   *  never recomputes. Stamps X-Model-Used. */
+  .post('/api/flashcards/cards/:id/explain', requireAuth, async (c) => {
+    try {
+      const rl = await rateLimit(c, 'flashcardsExplain');
+      if (rl) return rl;
+      const body = FlashExplainRequest.parse(await c.req.json().catch(() => ({})));
+      const db = drizzle(c.env.DB, { schema });
+      const cardId = c.req.param('id')!;
+      const userId = c.get('userId');
+      const cardRows = await db.select().from(schema.flashCard).where(eq(schema.flashCard.id, cardId)).limit(1).all();
+      const card = cardRows[0];
+      if (!card) return c.json({ code: ErrorCode.NotFound, message: 'Card not found' }, 404);
+      const deckRows = await db.select().from(schema.flashDeck).where(eq(schema.flashDeck.id, card.deckId)).limit(1).all();
+      if (deckRows[0]?.ownerId !== userId) {
+        return c.json({ code: ErrorCode.Forbidden, message: 'Not your deck' }, 403);
+      }
+      // Use a fresh system per (front, back, depth, level) so cache keys
+      // never collide across depths.
+      const level: Level = body.level ?? 'B2';
+      const system = FLASHCARD_EXPLAIN_PROMPT(card.front, card.back, level, body.depth);
+      const out = await myChat(
+        c.env,
+        'flashcardsExplain',
+        {
+          system,
+          messages: [{ role: 'user', content: `${card.front} → ${card.back}` }],
+          maxTokens: 600,
+          temperature: 0.4,
+        },
+        { kind: 'explanation', authoritative: true },
+      );
+      c.header('X-Model-Used', out.model);
+      return c.json({
+        explanation: out.text.trim().slice(0, 800),
+        model: out.model,
+        provider: out.provider,
+        cached: !!out.cached,
+        depth: body.depth,
+      });
+    } catch (e) {
+      const ce = cascadeError(c, e);
+      if (ce) return ce;
       return handleError(c, e);
     }
   })
@@ -175,13 +733,11 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
       const rows = await db.select().from(schema.flashCard).where(eq(schema.flashCard.id, cardId)).limit(1).all();
       const card = rows[0];
       if (!card) return c.json({ code: ErrorCode.NotFound, message: 'Card not found' }, 404);
-      // Verify ownership via the deck.
       const deckRows = await db.select().from(schema.flashDeck).where(eq(schema.flashDeck.id, card.deckId)).limit(1).all();
       if (deckRows[0]?.ownerId !== userId) {
         return c.json({ code: ErrorCode.Forbidden, message: 'Not your deck' }, 403);
       }
 
-      // Validate stored state then compute next state.
       const cur = SrsState.parse(card.srsState);
       const next = srsStep(cur, grade);
       await db
@@ -195,7 +751,6 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
         grade,
       });
 
-      // XP grant — atomic increment.
       const xpDelta = XP_BY_GRADE[grade]!;
       if (xpDelta > 0) {
         await db

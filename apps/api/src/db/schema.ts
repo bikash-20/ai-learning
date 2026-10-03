@@ -127,6 +127,16 @@ export const flashCard = sqliteTable('flash_card', {
   deckId: text('deck_id').notNull().references(() => flashDeck.id, { onDelete: 'cascade' }),
   front: text('front').notNull(),
   back: text('back').notNull(),
+  /** Optional hint that nudges without revealing the answer. */
+  hint: text('hint'),
+  /** Optional short AI explanation shown on the back / via AI Explain. */
+  explanation: text('explanation'),
+  /** JSON-encoded string array of tags. Default '[]' (D1 default). */
+  tags: text('tags').notNull().default('[]'),
+  /** 'easy' | 'hard'. */
+  difficulty: text('difficulty'),
+  /** AI provenance: {provider, model, generatedAt} as JSON. */
+  aiMeta: text('ai_meta'),
   srsState: text('srs_state', { mode: 'json' })
     .$type<{ intervalDays: number; ease: number; dueAt: number }>()
     .notNull(),

@@ -321,3 +321,30 @@ body {
 /* KaTeX inline size bump so it doesn't look squished. */
 .prose-quiet .katex { font-size: 1.02em; }
 .prose-quiet .katex-display { margin: 0.5rem 0; overflow-x: auto; }
+
+/* ---------- Modal (native <dialog>) ---------- */
+.modal-card {
+  background: var(--glass-bg);
+  color: var(--foreground);
+  border-color: var(--glass-border);
+}
+.modal-card::backdrop {
+  background: rgba(8, 18, 28, 0.6);
+  backdrop-filter: blur(2px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .modal-card[open] {
+    animation: modal-in 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .modal-card[open]::backdrop {
+    animation: modal-fade 180ms ease-out;
+  }
+}
+@keyframes modal-in {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
