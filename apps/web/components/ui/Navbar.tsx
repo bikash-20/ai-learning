@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { NavLink } from '@/components/NavLink';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { UserMenu } from '@/components/UserMenu';
 import { MobileMenu } from '@/components/MobileMenu';
 import { navItems } from './navItems';
 
@@ -19,6 +20,7 @@ export const Navbar = () => (
           <NavLink key={it.href} href={it.href}>{it.label}</NavLink>
         ))}
         <ThemeToggle />
+        <UserMenu />
       </div>
       {/* Mobile hamburger */}
       <MobileMenu />

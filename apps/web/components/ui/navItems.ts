@@ -3,5 +3,5 @@ export const navItems = [
   { href: '/quiz', label: 'Quiz' },
   { href: '/vocab', label: 'Vocab' },
   { href: '/grammar', label: 'Grammar' },
-  { href: '/sign-in', label: 'Sign in' },
+  { href: '/explore', label: 'Explore' },
 ] as const;

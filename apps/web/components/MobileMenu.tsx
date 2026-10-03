@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink } from '@/components/NavLink';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { UserMenu } from '@/components/UserMenu';
 import { navItems } from '@/components/ui/navItems';
 
 export const MobileMenu = () => {
@@ -39,8 +40,9 @@ export const MobileMenu = () => {
               <span className="block px-2 py-3 text-base" onClick={() => setOpen(false)}>{it.label}</span>
             </NavLink>
           ))}
-          <div className="mt-1 border-t border-glass-border pt-2">
+          <div className="mt-1 flex items-center justify-between border-t border-glass-border pt-2">
             <ThemeToggle />
+            <UserMenu />
           </div>
         </div>
       )}
