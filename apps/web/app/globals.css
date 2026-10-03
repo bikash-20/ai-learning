@@ -134,3 +134,106 @@ body { min-height: 100dvh; overflow-x: hidden; }
   }
   .dot-pulse { animation: none; }
 }
+
+/* ---------- Branded backgrounds (image + token overlay) ---------- */
+/* Both images sit behind a token-driven gradient that gets stronger
+   toward the center so text on top stays WCAG AA readable in both
+   modes. The `<picture>` element picks WebP first via image-set on the
+   `bg-img-*` utility classes; the solid-color `bg-img-fallback` is the
+   no-flash paint that goes away once the image loads. */
+:root {
+  /* overlay stops — light mode */
+  --bg-overlay-light: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--background) 92%, transparent) 0%,
+    color-mix(in oklab, var(--background) 78%, transparent) 50%,
+    color-mix(in oklab, var(--surface) 92%, transparent) 100%
+  );
+  /* darker, more dramatic overlay for focus-heavy pages (chat / quiz / exam) */
+  --bg-overlay-light-strong: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--surface) 96%, transparent) 0%,
+    color-mix(in oklab, var(--background) 90%, transparent) 100%
+  );
+  /* sign-in needs a vignette to read text on the right side */
+  --bg-overlay-login: radial-gradient(
+    ellipse at 75% 50%,
+    color-mix(in oklab, var(--surface) 94%, transparent) 0%,
+    color-mix(in oklab, var(--background) 70%, transparent) 65%,
+    color-mix(in oklab, var(--background) 92%, transparent) 100%
+  );
+}
+.dark {
+  --bg-overlay-light: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--background) 88%, transparent) 0%,
+    color-mix(in oklab, var(--surface) 78%, transparent) 50%,
+    color-mix(in oklab, var(--background) 92%, transparent) 100%
+  );
+  --bg-overlay-light-strong: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--background) 96%, transparent) 0%,
+    color-mix(in oklab, var(--surface) 92%, transparent) 100%
+  );
+  --bg-overlay-login: radial-gradient(
+    ellipse at 75% 50%,
+    color-mix(in oklab, var(--surface) 88%, transparent) 0%,
+    color-mix(in oklab, var(--background) 70%, transparent) 65%,
+    color-mix(in oklab, var(--background) 92%, transparent) 100%
+  );
+}
+
+/* Solid fallback paint — what shows before the image decodes. Sits on
+   the same container; image-set replaces it visually once loaded. */
+.bg-img-fallback {
+  background: var(--surface);
+}
+
+/* The image layer. `image-set` lets the browser pick the best WebP /
+   original JPG for the viewport. Default: mobile WebP. */
+.bg-img-login {
+  background-image:
+    image-set(
+      url('/img/bg-login-m.webp') type('image/webp'),
+      url('/img/bg-login-d.webp') type('image/webp')
+    );
+  background-image: -webkit-image-set(
+    url('/img/bg-login-m.webp') type('image/webp'),
+    url('/img/bg-login-d.webp') type('image/webp')
+  );
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.bg-img-explore {
+  background-image:
+    image-set(
+      url('/img/bg-explore-m.webp') type('image/webp'),
+      url('/img/bg-explore-d.webp') type('image/webp')
+    );
+  background-image: -webkit-image-set(
+    url('/img/bg-explore-m.webp') type('image/webp'),
+    url('/img/bg-explore-d.webp') type('image/webp')
+  );
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Token-driven gradient overlay used on top of the image. */
+.bg-overlay-login   { background-image: var(--bg-overlay-login); }
+.bg-overlay-app     { background: var(--bg-overlay-light); }
+.bg-overlay-app-strong { background: var(--bg-overlay-light-strong); }
+
+/* Disabled under prefers-reduced-motion and low-power: a slow
+   background-position drift adds life to the explore shell but is
+   purely decorative. */
+@media (prefers-reduced-motion: no-preference) {
+  .bg-drift {
+    animation: bg-drift 60s ease-in-out infinite alternate;
+  }
+}
+@keyframes bg-drift {
+  0%   { background-position: 50% 50%; }
+  100% { background-position: 55% 55%; }
+}

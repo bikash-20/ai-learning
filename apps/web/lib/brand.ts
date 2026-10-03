@@ -13,6 +13,14 @@ export const BRAND = {
   tagline: 'AI-powered English practice — IELTS, grammar, vocabulary.',
   /** Sub-line under the sign-in card. */
   signInTagline: 'Practice English with an AI tutor.',
+  /** Hero tagline on the sign-in brand panel. */
+  heroTagline: 'Learn the universe of knowledge.',
+  /** Three short value points shown on the sign-in brand panel (desktop). */
+  valuePoints: [
+    { icon: '✨', text: 'Adaptive AI tutor that meets you where you are.' },
+    { icon: '🧠', text: 'Spaced-repetition so words and grammar actually stick.' },
+    { icon: '🛰️', text: 'Timed mini-mocks that feel like the real exam.' },
+  ] as const,
   /** Founder credit used on the home hero, hub, and sign-in footer. */
   founder: {
     name: 'Bikash Talukder',

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <defs>
+    <linearGradient id="qg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0E8FA8"/>
+      <stop offset="100%" stop-color="#2CC4D9"/>
+    </linearGradient>
+  </defs>
+  <!-- Glass-tinted outer ring -->
+  <circle cx="20" cy="20" r="18" fill="url(#qg)"/>
+  <!-- Inner cutout to make it read as a ring -->
+  <circle cx="20" cy="20" r="13" fill="#D9F3F7"/>
+  <!-- Filled "Q" body -->
+  <circle cx="20" cy="20" r="6" fill="#08303F"/>
+  <!-- Q tail -->
+  <path d="M24 24 L30 30" stroke="#08303F" stroke-width="3" stroke-linecap="round" fill="none"/>
+</svg>
