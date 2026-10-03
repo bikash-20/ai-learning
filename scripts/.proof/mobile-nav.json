@@ -1,0 +1,62 @@
+{
+  "goneChecks": [
+    {
+      "label": "Go back",
+      "ok": true,
+      "present": false
+    },
+    {
+      "label": "router.back",
+      "ok": true,
+      "present": false
+    }
+  ],
+  "presentChecks": [
+    {
+      "label": "Go to Explore",
+      "ok": true,
+      "present": true
+    },
+    {
+      "label": "Open account menu",
+      "ok": true,
+      "present": true
+    },
+    {
+      "label": "QUANTARA",
+      "ok": true,
+      "present": true
+    },
+    {
+      "label": "M3 11l9-8 9 8",
+      "ok": true,
+      "present": true
+    },
+    {
+      "label": "/explore",
+      "ok": true,
+      "present": true
+    }
+  ],
+  "screenshots": [
+    {
+      "label": "signin-mobile",
+      "path": "/Users/bikashtalukder/ai-learning/scripts/.proof/mobile-nav-mobile-375-light.png",
+      "url": "https://web-nine-rho-1j664llz3j.vercel.app/sign-in?returnTo=%2Fexplore",
+      "overflow": false
+    },
+    {
+      "label": "signin-tablet",
+      "path": "/Users/bikashtalukder/ai-learning/scripts/.proof/mobile-nav-tablet-375-light.png",
+      "url": "https://web-nine-rho-1j664llz3j.vercel.app/sign-in?returnTo=%2Fexplore",
+      "overflow": false
+    },
+    {
+      "label": "signin-desktop",
+      "path": "/Users/bikashtalukder/ai-learning/scripts/.proof/mobile-nav-desktop-375-light.png",
+      "url": "https://web-nine-rho-1j664llz3j.vercel.app/sign-in?returnTo=%2Fexplore",
+      "overflow": false
+    }
+  ],
+  "issues": []
+}
