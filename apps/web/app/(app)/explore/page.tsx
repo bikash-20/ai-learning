@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { BRAND, todaysTip } from '@/lib/brand';
 import { GRID_TILES, TILE_ACCENT, type HubTile } from '@/lib/hubConfig';
 import { useSession } from '@/lib/useSession';
+import { useRole } from '@/lib/useRole';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
 import { BrandMark, BrandWordmark, FounderCredit } from '@/components/Brand';
@@ -119,10 +120,10 @@ const Tile = ({ tile, onChip }: { tile: HubTile; onChip?: (label: string) => voi
 export default function ExplorePage() {
   const router = useRouter();
   const { user, signOut } = useSession();
+  const role = useRole();
   const health = useHealthState();
   const [tip] = useState<string>(() => todaysTip());
-  const isAdmin = !!user?.email && user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  const tiles = GRID_TILES(isAdmin);
+  const tiles = GRID_TILES(role === 'admin');
 
   const onTileChip = (tileId: string, label: string) => {
     // Map a "Easy" / "Hard" chip into a quiz level query string.

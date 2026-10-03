@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { TAB_TILES } from '@/lib/hubConfig';
 import { useSession } from '@/lib/useSession';
+import { useRole } from '@/lib/useRole';
 
 /**
  * Mobile bottom tab bar. Shown on screens < md, fixed to the bottom of
@@ -14,9 +15,9 @@ import { useSession } from '@/lib/useSession';
  */
 export const BottomTabBar = () => {
   const pathname = usePathname();
-  const { user } = useSession();
-  const isAdmin = !!user?.email && user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-  const tiles = TAB_TILES(isAdmin).slice(0, 5);
+  useSession(); // ensures session cookie present
+  const role = useRole();
+  const tiles = TAB_TILES(role === 'admin').slice(0, 5);
 
   return (
     <nav

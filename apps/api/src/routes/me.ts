@@ -16,6 +16,23 @@ import { UserPrefsPatch, ErrorCode } from '@quantara/shared';
  * block the auth flow on prefs.
  */
 export const meRoute = new Hono<{ Bindings: Env; Variables: { userId: string } }>()
+  /** Returns the signed-in user's role. Cheap, used by the web to
+   *  decide whether to show admin surfaces. */
+  .get('/api/me/role', requireAuth, async (c) => {
+    try {
+      const db = drizzle(c.env.DB, { schema });
+      const userId = c.get('userId');
+      const rows = await db
+        .select({ role: schema.user.role })
+        .from(schema.user)
+        .where(eq(schema.user.id, userId))
+        .limit(1)
+        .all();
+      return c.json({ role: rows[0]?.role ?? 'user' });
+    } catch (e) {
+      return handleError(c, e);
+    }
+  })
   .get('/api/me/prefs', requireAuth, async (c) => {
     try {
       const db = drizzle(c.env.DB, { schema });

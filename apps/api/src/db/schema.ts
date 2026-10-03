@@ -8,6 +8,8 @@ export const user = sqliteTable('user', {
   email: text('email').notNull().unique(),
   emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
   image: text('image'),
+  /** 'user' (default) or 'admin'. Gated server-side; see requireAdmin. */
+  role: text('role', { enum: ['user', 'admin'] }).notNull().default('user'),
   /** Total XP earned across all interactions. */
   xp: integer('xp').notNull().default(0),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
