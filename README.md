@@ -1,4 +1,7 @@
 # AI Learning Platform
+live: https://web-nine-rho-1j664llz3j.vercel.app/
+<img width="1280" height="755" alt="image" src="https://github.com/user-attachments/assets/54573ae2-4fa9-417c-b23d-05e3b0eea18e" />
+
 
 AI-powered English practice platform (IELTS, grammar, vocabulary).
 
