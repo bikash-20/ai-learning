@@ -1,0 +1,42 @@
+name = "ai-learning-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# --- D1 (SQLite at the edge) ---
+# Run `wrangler d1 create ai-learning-db` once, then paste the `database_id` here.
+[[d1_databases]]
+binding = "DB"
+database_name = "ai-learning-db"
+database_id = "REPLACE_AFTER_WRANGLER_D1_CREATE"
+migrations_dir = "migrations"
+
+# --- Durable Objects (rate limiter + chat session) ---
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[durable_objects.bindings]]
+name = "CHAT_SESSION"
+class_name = "ChatSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiter", "ChatSession"]
+
+# --- Analytics Engine (observability for AI calls) ---
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+
+# --- AI binding (Workers AI) ---
+# No binding stanza needed — `env.AI` is implicit on Workers.
+
+# --- Vars (non-secret config) ---
+[vars]
+ENVIRONMENT = "development"
+ALLOWED_ORIGINS = "http://localhost:3000"
+
+[env.production]
+[env.production.vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://REPLACE_AFTER_VERCEL_DEPLOY.vercel.app"

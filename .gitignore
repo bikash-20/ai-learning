@@ -1,0 +1,33 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+.next/
+.wrangler/
+.vercel/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+.dev.vars
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+*.swp
+
+# turbo / nx
+.turbo/

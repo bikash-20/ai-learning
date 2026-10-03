@@ -1,0 +1,22 @@
+[
+  { "word": "ephemeral", "pos": "adj", "definition": "Lasting for a very short time.", "examples": ["Fashions are ephemeral; classics endure."], "tags": ["ielts", "high-frequency"], "level": "C1" },
+  { "word": "meticulous", "pos": "adj", "definition": "Showing great attention to detail; very careful and precise.", "examples": ["She is meticulous about citing every source."], "tags": ["ielts", "writing"], "level": "B2" },
+  { "word": "ubiquitous", "pos": "adj", "definition": "Present, appearing, or found everywhere.", "examples": ["Smartphones have become ubiquitous in modern life."], "tags": ["ielts"], "level": "C1" },
+  { "word": "mitigate", "pos": "verb", "definition": "Make less severe, serious, or painful.", "examples": ["Measures were taken to mitigate the effects of the flood."], "tags": ["ielts", "writing"], "level": "B2" },
+  { "word": "paradigm", "pos": "noun", "definition": "A typical example or pattern of something; a model.", "examples": ["A new paradigm of remote work has emerged."], "tags": ["ielts", "academic"], "level": "C1" },
+  { "word": "coherent", "pos": "adj", "definition": "Logical and consistent; forming a unified whole.", "examples": ["Her essay was coherent and well-structured."], "tags": ["writing"], "level": "B2" },
+  { "word": "robust", "pos": "adj", "definition": "Strong and healthy; vigorous; able to withstand adverse conditions.", "examples": ["The system is robust enough for concurrent use."], "tags": [], "level": "B2" },
+  { "word": "implicit", "pos": "adj", "definition": "Implied though not directly expressed.", "examples": ["There was an implicit threat in his tone."], "tags": ["writing"], "level": "B2" },
+  { "word": "scrutinize", "pos": "verb", "definition": "Examine or inspect closely and thoroughly.", "examples": ["The auditor scrutinized every transaction."], "tags": ["ielts"], "level": "C1" },
+  { "word": "ambiguous", "pos": "adj", "definition": "Open to more than one interpretation; unclear.", "examples": ["The clause is ambiguous and needs revision."], "tags": ["writing"], "level": "B2" },
+  { "word": "alleviate", "pos": "verb", "definition": "Make suffering, deficiency, or a problem less severe.", "examples": ["The NGO works to ease pain."], "tags": [], "level": "B2" },
+  { "word": "conducive", "pos": "adj", "definition": "Making a certain situation or outcome likely or possible.", "examples": ["A quiet room is conducive to study."], "tags": ["writing"], "level": "C1" },
+  { "word": "nuance", "pos": "noun", "definition": "A subtle difference in or shade of meaning, expression, or sound.", "examples": ["The translator captured every nuance of the poem."], "tags": ["ielts"], "level": "C1" },
+  { "word": "undermine", "pos": "verb", "definition": "Weaken or damage gradually or insidiously.", "examples": ["His constant delays undermined the team's morale."], "tags": [], "level": "B2" },
+  { "word": "pervasive", "pos": "adj", "definition": "Spreading widely throughout an area or a group of people.", "examples": ["Pervasive misinformation is hard to combat."], "tags": [], "level": "C1" },
+  { "word": "contemplate", "pos": "verb", "definition": "Look at thoughtfully for a long time; think deeply about.", "examples": ["She contemplated the view from the cliff."], "tags": [], "level": "B2" },
+  { "word": "disclose", "pos": "verb", "definition": "Make known; reveal.", "examples": ["The company disclosed its quarterly earnings."], "tags": ["writing"], "level": "B2" },
+  { "word": "resilient", "pos": "adj", "definition": "Able to withstand or recover quickly from difficult conditions.", "examples": ["Children are often remarkably resilient."], "tags": [], "level": "B2" },
+  { "word": "plausible", "pos": "adj", "definition": "Seeming reasonable or probable.", "examples": ["His excuse sounded plausible."], "tags": [], "level": "B2" },
+  { "word": "substantial", "pos": "adj", "definition": "Of considerable importance, size, or worth.", "examples": ["We received a substantial grant."], "tags": ["writing"], "level": "B2" }
+]
