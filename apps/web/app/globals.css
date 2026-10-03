@@ -70,15 +70,20 @@
 /* ---------- Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 
-html, body {
-  background: var(--background);
+/* `html` is the canvas. It carries the token surface color so pages
+   that don't paint their own background (e.g. /privacy, /terms, the
+   bare root layout) still look correct. `body` stays transparent so
+   the fixed background image layers in (auth) and (app) — which sit at
+   `z-index: -20/-10` — are not hidden behind an opaque body paint. */
+html { background: var(--background); }
+body {
   color: var(--foreground);
   font-family: var(--font-body), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+  overflow-x: hidden;
 }
-
-body { min-height: 100dvh; overflow-x: hidden; }
 
 /* ---------- Focus ring (keyboard only) ---------- */
 :where(button, a, input, select, textarea, [tabindex]):focus-visible {
@@ -227,18 +232,9 @@ body { min-height: 100dvh; overflow-x: hidden; }
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  /* The original is 736×414 — small enough that any wide desktop view
-     will stretch it. A subtle blur disguises the upscale without faking
-     detail (no sharpen, no bicubic). */
-  filter: blur(2px);
-}
-@media (min-width: 1024px) {
-  /* Scale up the blur slightly on desktop where the upscale artifact is
-     more visible. The blur reads as intentional atmosphere when paired
-     with the token overlay. */
-  .bg-img-explore {
-    filter: blur(4px);
-  }
+  /* Source is 1200×1006 — large enough that desktop stretches are
+     imperceptible. No blur: the icy planet detail (craters, atmosphere,
+     starfield) reads crisp under the token overlay. */
 }
 
 /* Token-driven gradient overlay used on top of the image. */

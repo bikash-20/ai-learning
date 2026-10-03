@@ -91,7 +91,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${fontVariables} font-body`} suppressHydrationWarning>
-      <body className="min-h-dvh bg-bg antialiased text-fg">
+      <body className="min-h-dvh antialiased text-fg">
         <Providers>{children}</Providers>
       </body>
     </html>

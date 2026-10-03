@@ -3,7 +3,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['.next/**', 'node_modules/**', 'next-env.d.ts', 'postcss.config.mjs', 'next.config.mjs'],
+    ignores: ['.next/**', 'node_modules/**', '.vercel/**', 'next-env.d.ts', 'postcss.config.mjs', 'next.config.mjs'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

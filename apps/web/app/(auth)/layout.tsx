@@ -26,8 +26,12 @@ import { SparkleIcon, BrainIcon, ExamIcon } from '@/components/ui/icons';
  */
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="relative min-h-dvh bg-img-fallback">
-      {/* Background layers — fixed, behind everything. */}
+    <div className="relative min-h-dvh">
+      {/* Background layers — fixed, behind everything. Note: the wrapper
+          MUST NOT paint an opaque background here, otherwise it covers
+          the fixed -z-20 image layer (the wrapper paints at z-index 0).
+          The html element carries the canvas color via globals.css so the
+          surface never goes white even before the image decodes. */}
       <div
         aria-hidden="true"
         className="bg-img-login fixed inset-0 -z-20"
