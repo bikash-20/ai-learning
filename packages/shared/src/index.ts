@@ -145,6 +145,20 @@ export const QuizExplainRequest = z.object({
 });
 export type QuizExplainRequest = z.infer<typeof QuizExplainRequest>;
 
+/**
+ * Quiz from a passage: the user supplies a block of text (article,
+ * dialogue, report) and the AI generates n comprehension MCQs against it.
+ * Passage length is bounded to keep the prompt + output under control.
+ */
+export const QuizFromPassageRequest = z.object({
+  passage: z.string().min(80).max(8000),
+  level: Level,
+  n: z.number().int().min(1).max(10).default(5),
+  /** Optional hint to focus generation (vocab / inference / tone / fact) */
+  focus: z.enum(['mixed', 'vocab', 'inference', 'detail', 'tone']).default('mixed'),
+});
+export type QuizFromPassageRequest = z.infer<typeof QuizFromPassageRequest>;
+
 export const QuizExplainResponse = z.object({
   explanation: z.string(),
   model: z.string(),

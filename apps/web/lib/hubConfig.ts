@@ -60,6 +60,14 @@ export const HUB_TILES: HubTile[] = [
     ] },
   },
   {
+    id: 'quiz-from-passage',
+    title: 'Quiz from passage',
+    desc: 'Paste a text and AI generates comprehension questions.',
+    icon: '📖',
+    href: '/quiz/from-passage',
+    accent: 'accent',
+  },
+  {
     id: 'vocab',
     title: 'Vocabulary',
     desc: 'Authored word lists with examples.',

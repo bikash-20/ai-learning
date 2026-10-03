@@ -6,12 +6,13 @@ import { handleError } from '../lib/errors';
 import { chatJson, myChat } from '../ai/provider';
 import { cacheKey } from '../lib/aicache';
 import { AllUpstreamError, UpstreamAuthError, JsonCascadeError } from '../ai/cascade';
-import { QUIZ_GEN_PROMPT, EXPLAIN_PROMPT } from '../ai/prompt';
+import { QUIZ_GEN_PROMPT, EXPLAIN_PROMPT, QUIZ_FROM_PASSAGE_PROMPT } from '../ai/prompt';
 import {
   QuizFromTopicRequest,
   QuizItemsJson,
   QuizAttemptRequest,
   QuizExplainRequest,
+  QuizFromPassageRequest,
   ErrorCode,
 } from '@quantara/shared';
 import { drizzle } from 'drizzle-orm/d1';
@@ -281,6 +282,74 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
         provider: out.provider,
         cached: false,
       });
+    } catch (e) {
+      const friendly = cascadeError(c, e);
+      if (friendly) return friendly;
+      return handleError(c, e);
+    }
+  })
+
+  /**
+   * Generate comprehension items from a user-supplied passage. Reuses
+   * the same QuizItemsJson validation + quiz/quiz_item persistence +
+   * reveal/attempt flow as /api/quiz/from-topic — the topic label on the
+   * persisted quiz is the truncated passage head, so the user can still
+   * see what they were quizzed on later.
+   */
+  .post('/api/quiz/from-passage', requireAuth, async (c) => {
+    try {
+      const rl = await rateLimit(c, 'quizGen');
+      if (rl) return rl;
+      const body = QuizFromPassageRequest.parse(await c.req.json());
+      const db = drizzle(c.env.DB, { schema });
+
+      const system = 'You generate CEFR English reading-comprehension items. Output JSON only.';
+      const { parsed, out } = await chatJson(
+        c.env,
+        'quizGen',
+        {
+          system,
+          messages: [
+            {
+              role: 'user',
+              content: QUIZ_FROM_PASSAGE_PROMPT(body.passage, body.level, body.n, body.focus),
+            },
+          ],
+          temperature: 0.4,
+          maxTokens: 1800,
+        },
+        QuizItemsJson.parse,
+      );
+      const items = parsed.items;
+      if (items.length === 0) {
+        return c.json(
+          { code: ErrorCode.AIInvalid, message: "We couldn't generate questions for that passage — try again or pick a longer one." },
+          502,
+        );
+      }
+
+      const topic = `Passage: ${body.passage.slice(0, 60).replace(/\s+/g, ' ').trim()}…`;
+      const quizId = crypto.randomUUID();
+      await db.insert(schema.quiz).values({
+        id: quizId,
+        ownerId: c.get('userId'),
+        source: 'ai',
+        topic,
+        level: body.level,
+      });
+      const itemIds = items.map(() => crypto.randomUUID());
+      await db.insert(schema.quizItem).values(
+        items.map((it, i) => ({
+          id: itemIds[i]!,
+          quizId,
+          prompt: it.prompt,
+          options: it.options,
+          answerIdx: it.answerIdx,
+          explanation: it.explanation,
+        })),
+      );
+      const itemsWithId = items.map((it, i) => ({ id: itemIds[i]!, ...it }));
+      return c.json({ quizId, items: itemsWithId, provider: out.provider, model: out.model });
     } catch (e) {
       const friendly = cascadeError(c, e);
       if (friendly) return friendly;
