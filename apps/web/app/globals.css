@@ -232,9 +232,9 @@ body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  /* Source is 1200×1006 — large enough that desktop stretches are
-     imperceptible. No blur: the icy planet detail (craters, atmosphere,
-     starfield) reads crisp under the token overlay. */
+  /* Source is 1000×667 — the desktop variant serves the full-width image, so
+     stretches stay modest. No blur: the ringed-planet detail (rings,
+     atmosphere, starfield) reads crisp under the token overlay. */
 }
 
 /* Token-driven gradient overlay used on top of the image. */
