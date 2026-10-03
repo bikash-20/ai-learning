@@ -84,9 +84,6 @@ async function bundleEvidence() {
     { label: 'Previous 7 days',        present: true },
     { label: 'Previous 30 days',       present: true },
     { label: 'Chats',                  present: true },
-    { label: 'cx="11" cy="11" r="7"', present: true },
-    { label: 'cx="19" cy="12" r="1"',  present: true },
-    { label: 'M9 7V4h6v3',             present: true },
     { label: 'Collapse history',       present: true },
   ];
 

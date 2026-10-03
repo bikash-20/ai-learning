@@ -1,0 +1,60 @@
+{
+  "bundleChecks": [
+    {
+      "label": "Search chats",
+      "ok": true
+    },
+    {
+      "label": "Conversation actions",
+      "ok": true
+    },
+    {
+      "label": "Today",
+      "ok": true
+    },
+    {
+      "label": "Yesterday",
+      "ok": true
+    },
+    {
+      "label": "Previous 7 days",
+      "ok": true
+    },
+    {
+      "label": "Previous 30 days",
+      "ok": true
+    },
+    {
+      "label": "Chats",
+      "ok": true
+    },
+    {
+      "label": "Collapse history",
+      "ok": true
+    }
+  ],
+  "visualChecks": [
+    {
+      "name": "mobile",
+      "width": 375,
+      "overflow": false,
+      "path": "/Users/bikashtalukder/ai-learning/scripts/.proof/chat-sidebar-mobile-375.png"
+    },
+    {
+      "name": "tablet",
+      "width": 768,
+      "overflow": false,
+      "path": "/Users/bikashtalukder/ai-learning/scripts/.proof/chat-sidebar-tablet-768.png"
+    },
+    {
+      "name": "desktop",
+      "width": 1280,
+      "overflow": false,
+      "path": "/Users/bikashtalukder/ai-learning/scripts/.proof/chat-sidebar-desktop-1280.png"
+    }
+  ],
+  "unverified": [
+    "Full sidebar UX (search filtering, grouped-date rendering, \"...\" overflow menu actions) — requires authenticated /chat session."
+  ],
+  "issues": []
+}
