@@ -15,8 +15,6 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile
-      - name: Pull Vercel project info
-        run: echo '{"projectId":"prj_vt7GBDDjVk0oiEN6Cra6VJn4Gnkw","orgId":"team_Hn2n2SLNIQKACaKcA1LsB2Ky","projectName":"web","settings":{"rootDirectory":"apps/web","framework":"nextjs"}}' > apps/web/.vercel/project.json
       - name: Deploy to Vercel (production)
         uses: amondnet/vercel-action@v25
         with:
