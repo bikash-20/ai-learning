@@ -51,11 +51,9 @@ import * as schema from '../db/schema';
  * fix that restored chat when every OpenRouter free-tier model was 429'd.
  *
  * Failure modes:
- *   - Pre-token failure (no model produced any token): the SSE stream
- *     is closed without `event: token` having fired. The client
- *     interprets `bytesReceived === 0 && !taggedCat` as a network error
- *     (already wired in chat/page.tsx). We log the upstream failure for
- *     observability.
+ *   - Pre-token failure (no model produced any token): send an SSE error
+ *     frame so the client can distinguish an upstream failure from a
+ *     connection failure.
  *   - Mid-stream failure (first token landed, then transport died):
  *     `event: error` frame is appended at the tail of the stream so the
  *     client keeps the partial reply + renders a friendly error.
@@ -242,13 +240,10 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
             code = ErrorCode.UpstreamUnavailable;
             message = e.message || 'AI service is temporarily unavailable.';
           }
-          // If we got at least one token out, emit an SSE error frame so
-          // the client can keep the partial reply + render a friendly
-          // error. Otherwise the stream just closes — the client treats
-          // empty bytes as a network error and falls through to its retry.
-          if (firstTokenSeen) {
-            sendSse('error', { code, message });
-          }
+          // Always signal the failure. Without an error frame, a pre-token
+          // provider failure looks like an empty/failed network response to
+          // the client, obscuring the upstream cause.
+          sendSse('error', { code, message });
           ctrl.close();
         }
       },
