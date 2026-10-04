@@ -605,7 +605,16 @@ export type StreamResult = {
 
 export type StreamSink = (event: { kind: 'token'; text: string }) => void;
 
-const FIRST_TOKEN_TIMEOUT_MS = 8_000;
+/**
+ * First-token watchdog for the chat SSE cascade. Free-tier OpenRouter models
+ * (qwen, nemotron, gemma) routinely take 10–14s to emit the first token on
+ * cold start. The previous 8s budget was cutting off otherwise-healthy
+ * models mid-reply, leaving the chat client with an empty stream and the
+ * user seeing "AI service temporarily unavailable". 14s gives cold starts
+ * room to land while keeping the overall chat latency well under the
+ * 22s cascade budget.
+ */
+const FIRST_TOKEN_TIMEOUT_MS = 14_000;
 
 /** Try one OpenRouter stream. Returns `{ kind: 'success'|'transport_error'|'auth_fail' }`. */
 const tryStreamModel = async (
