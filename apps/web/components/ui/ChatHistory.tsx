@@ -204,27 +204,32 @@ export const ChatHistory = ({
 
   return (
     <aside
+      id="chat-history-sidebar"
       aria-label="Chat history"
       className={`chat-sidebar-shell glass flex h-full flex-col gap-3 overflow-hidden p-3 ${mobileOpen ? 'fixed inset-0 z-40 w-full' : 'hidden sm:flex'} ${showRail ? 'w-full sm:w-16 sm:flex-col sm:items-stretch lg:w-16' : 'w-full sm:w-72 sm:flex-col lg:w-80'}`}
     >
       {/* === Header === */}
-      <div className="flex shrink-0 items-center justify-between gap-2">
+      <div className={`flex shrink-0 items-center gap-2 ${showRail ? 'flex-col' : 'justify-between'}`}>
         {showRail ? (
           <>
             <span className="sr-only">Chat history (collapsed)</span>
             <button
               type="button"
               onClick={onToggleCollapsed}
-              aria-label="Open history"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-glass-border bg-glass-bg text-fg hover:border-accent"
+              aria-label="Expand chat history"
+              aria-controls="chat-history-sidebar"
+              aria-expanded={false}
+              title="Expand chat history"
+              className="inline-flex h-10 w-full items-center justify-center rounded-full border border-glass-border bg-glass-bg text-fg hover:border-accent"
             >
-              <HistoryIcon size={18} />
+              <HistoryIcon size={18} decorative />
             </button>
             <button
               type="button"
               onClick={onNew}
               aria-label="New chat"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-glass-border bg-glass-bg text-fg hover:border-accent"
+              title="New chat"
+              className="inline-flex h-10 w-full items-center justify-center rounded-full border border-glass-border bg-glass-bg text-fg hover:border-accent"
             >
               <PlusIcon size={16} decorative />
             </button>
@@ -258,6 +263,8 @@ export const ChatHistory = ({
                   type="button"
                   onClick={onToggleCollapsed}
                   aria-label="Collapse history"
+                  aria-controls="chat-history-sidebar"
+                  aria-expanded={true}
                   title="Collapse history"
                   className="hidden h-9 w-9 items-center justify-center rounded-full border border-glass-border bg-glass-bg text-muted hover:text-fg sm:inline-flex"
                 >
