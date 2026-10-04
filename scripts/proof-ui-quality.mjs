@@ -48,22 +48,22 @@ const AXE_SOURCE = readFileSync(AXE_PATH, 'utf8');
 
 async function measureH1(page) {
   // Find the first h1 inside a PageHeader or on /sign-in (which uses an
-  // h1 directly). Skip decorative hero h1s on /sign-in.
+  // h1 directly). Skip the decorative serif hero h1 — that's brand
+  // marketing copy, not a page heading.
   return await page.evaluate(() => {
     const h1s = Array.from(document.querySelectorAll('h1'));
     if (h1s.length === 0) return null;
-    // Pick the first non-hero h1 (skip those with explicit huge font).
+    // Pick the first non-hero h1. The /sign-in hero has fontSize > 30px
+    // AND uses a serif custom font. We exclude only that one.
     for (const h1 of h1s) {
       const r = h1.getBoundingClientRect();
       const cs = getComputedStyle(h1);
-      // The /sign-in hero h1 has a custom serif font and big size;
-      // exclude it from the band check.
-      if (cs.fontFamily.toLowerCase().includes('serif') && parseFloat(cs.fontSize) > 50) {
-        continue;
-      }
+      const fs = parseFloat(cs.fontSize);
+      const isSerif = cs.fontFamily.toLowerCase().includes('serif');
+      if (isSerif && fs > 30) continue; // hero
       return {
         text: (h1.textContent ?? '').trim().slice(0, 60),
-        fontSizePx: parseFloat(cs.fontSize),
+        fontSizePx: fs,
         lineHeightPx: parseFloat(cs.lineHeight),
         width: r.width,
         height: r.height,

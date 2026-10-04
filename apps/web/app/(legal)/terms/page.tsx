@@ -9,7 +9,7 @@ export default function TermsPage() {
   return (
     <div className="space-y-5 text-sm leading-relaxed text-fg sm:text-base">
       <header>
-        <h1 className="font-display text-2xl uppercase tracking-display text-fg sm:text-3xl">
+        <h1 className="fluid-display-h1 text-fg">
           Terms
         </h1>
         <p className="mt-1 text-xs text-muted">
