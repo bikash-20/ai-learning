@@ -1,5 +1,4 @@
 import type { Env } from '../env';
-import { HAIKU_MODEL, resolveWorkersAiModels } from '../env';
 import { trackAI } from '../lib/analytics';
 import { cacheGet, cachePut, cacheKey, type CacheKind } from '../lib/aicache';
 import type { ChatMessage } from '@quantara/shared';
@@ -10,7 +9,6 @@ import {
   AllUpstreamError,
   UpstreamAuthError,
   JsonCascadeError,
-  CASCADE_BUDGET_MS,
   type CascadeResult,
 } from './cascade';
 
@@ -30,15 +28,22 @@ export type ChatOutput = {
   cached?: boolean;
 };
 
-const HEDGE = /\b(i'?m not sure|i think maybe|as an ai|as a language model|it depends|could be|might be)\b/i;
-
-const messagesToOpenAI = (msgs: ChatMessage[], system?: string) => [
-  ...(system ? [{ role: 'system' as const, content: system }] : []),
-  ...msgs.map((m) => ({ role: m.role, content: m.content })),
-];
-
-const stripJsonFence = (s: string) =>
-  s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+/**
+ * Per-tier deadlines. Each tier owns its full budget — Workers AI failure
+ * (e.g. cold start timeout) must not consume OpenRouter's budget.
+ *
+ *   - Workers AI: 8s. Six configured models, each capped at 12s, but the
+ *     cascade breaker + small budget cap total wall-time.
+ *   - OpenRouter: 15s. Free-tier models can be slow; we need enough
+ *     headroom for the first model to come back.
+ *
+ * Before 2026-10-04 both tiers shared a single 22s budget, so Workers AI
+ * frequently consumed it all and OpenRouter started already expired. That
+ * manifested as `chat` and `flashcards/decks/generate` returning
+ * `503 UPSTREAM_UNAVAILABLE` even when healthy models were configured.
+ */
+const WORKERS_TIER_MS = 8_000;
+const OPENROUTER_TIER_MS = 15_000;
 
 /** TTLs in seconds. Per-kind so explanations can outlive free-tier quotas. */
 const TTL: Record<CacheKind, number> = {
@@ -63,17 +68,30 @@ const keyFor = (route: string, kind: CacheKind, input: ChatInput) =>
   ]);
 
 /**
+ * Fire-and-forget cache write. The response shouldn't wait on the cache
+ * (D1 round-trip) — callers get their reply immediately and the cache
+ * populates in the background.
+ */
+const writeCache = (
+  env: Env,
+  key: string,
+  kind: CacheKind,
+  out: { text: string; provider: 'workers' | 'openrouter'; model: string; tokens: number },
+) => {
+  void cachePut(env, key, kind, out, TTL[kind]).catch((e: unknown) => {
+    console.warn('ai_cache_put_failed', { kind, err: String(e).slice(0, 200) });
+  });
+};
+
+/**
  * Unified AI entry. Cache → Workers AI list → OpenRouter cascade.
  *
- * Caching: D1 ai_cache keyed by (route, kind, system, messages, params).
- * Dedups across users so popular (topic, level, n) quizzes aren't regenerated.
- * Cache misses are non-fatal — we just keep going to the cascade.
+ * Each tier has its own deadline so Workers AI timeouts never consume
+ * OpenRouter's budget. Cascade errors fall through to the next tier;
+ * only the final tier failure propagates to the route layer.
  *
  * Returns a `ChatOutput` that always carries `provider` and `model`, so the
  * UI can show "via <model>" and the chat route can stamp `X-Model-Used`.
- *
- * Re-throws `UpstreamAuthError` and `AllUpstreamError` from the cascade so
- * the route layer can surface a friendly 502/503 + CORS-stamped body.
  */
 export const myChat = async (
   env: Env,
@@ -84,11 +102,15 @@ export const myChat = async (
   const kind: CacheKind = opts.kind ?? 'text';
   const start = Date.now();
   const key = await keyFor(route, kind, input);
-  // Overall cascade budget — Workers AI + OpenRouter combined. Without this
-  // a stuck free model can burn 12s × N attempts and the user sees "No
-  // connection" before any reply lands.
-  const budgetMs = opts.budgetMs ?? CASCADE_BUDGET_MS;
-  const deadlineMs = start + budgetMs;
+  // Per-tier deadlines. An explicit caller budget (e.g. batched deck
+  // generation sizing each batch under 6s) shrinks BOTH tiers so the whole
+  // cascade fits inside it.
+  const workersBudget = opts.budgetMs !== undefined
+    ? Math.min(opts.budgetMs, WORKERS_TIER_MS)
+    : WORKERS_TIER_MS;
+  const openRouterBudget = opts.budgetMs !== undefined
+    ? Math.min(opts.budgetMs, OPENROUTER_TIER_MS)
+    : OPENROUTER_TIER_MS;
 
   // 1) Cache lookup.
   try {
@@ -110,33 +132,32 @@ export const myChat = async (
     console.warn('ai_cache_get_failed', { route, kind, err: String(e) });
   }
 
-  // 2) Workers AI primary tier.
+  // 2) Workers AI primary tier — own deadline.
   try {
-    const w = await workersCascade(env, { ...input, route, deadlineMs });
+    const w = await workersCascade(env, {
+      ...input,
+      route,
+      deadlineMs: start + workersBudget,
+    });
     const out: ChatOutput = { ...w, cached: false };
     trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 0 });
-    // Cache best-effort.
-    await cachePut(env, key, kind, {
-      text: out.text,
-      provider: out.provider,
-      model: out.model,
-      tokens: out.tokens,
-    }, TTL[kind]);
+    writeCache(env, key, kind, out);
     return out;
   } catch (e) {
-    console.warn('workers_ai_fallback', { route, err: String(e) });
+    if (e instanceof UpstreamAuthError) throw e;
+    console.warn('workers_ai_fallback', { route, err: String(e).slice(0, 200) });
   }
 
-  // 3) OpenRouter cascade.
-  const fallback = await openRouterCascade(env, { ...input, route, deadlineMs });
+  // 3) OpenRouter cascade — fresh deadline. If this throws too, propagate
+  //    to the route layer so the user sees a friendly 503.
+  const fallback = await openRouterCascade(env, {
+    ...input,
+    route,
+    deadlineMs: Date.now() + openRouterBudget,
+  });
   const out: ChatOutput = { ...fallback, cached: false };
   trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 1 });
-  await cachePut(env, key, kind, {
-    text: out.text,
-    provider: out.provider,
-    model: out.model,
-    tokens: out.tokens,
-  }, TTL[kind]);
+  writeCache(env, key, kind, out);
   return out;
 };
 
@@ -162,16 +183,16 @@ export const chatJson = async <T>(
   const kind: CacheKind = 'json';
   const start = Date.now();
   const key = await keyFor(route, kind, input);
-  // JSON cascade retries the same model at temperature 0 — needs a tighter
-  // per-call budget than text. Use 22s total (one Workers try + one OpenRouter
-  // try + retries). Callers (e.g. deck batcher) can pass a smaller budget so
-  // one request's worth of batches fits within a shared envelope.
-  const budgetMs = opts.budgetMs ?? CASCADE_BUDGET_MS;
-  const deadlineMs = start + budgetMs;
+  const workersBudget = opts.budgetMs !== undefined
+    ? Math.min(opts.budgetMs, WORKERS_TIER_MS)
+    : WORKERS_TIER_MS;
+  const openRouterBudget = opts.budgetMs !== undefined
+    ? Math.min(opts.budgetMs, OPENROUTER_TIER_MS)
+    : OPENROUTER_TIER_MS;
 
   const tryParse = (txt: string): T | null => {
     try {
-      return parse(JSON.parse(stripJsonFence(txt)));
+      return parse(JSON.parse(txt.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim()));
     } catch {
       return null;
     }
@@ -198,27 +219,36 @@ export const chatJson = async <T>(
     console.warn('ai_cache_get_failed', { route, kind, err: String(e) });
   }
 
-  // 2) Workers AI primary.
+  // 2) Workers AI primary — own deadline. On transport failure OR parse
+  //    failure, fall through to OpenRouter (do NOT rethrow).
   try {
-    const w = await workersCascade(env, { ...input, route, deadlineMs });
+    const w = await workersCascade(env, {
+      ...input,
+      route,
+      deadlineMs: start + workersBudget,
+    });
     const parsed = tryParse(w.text);
     if (parsed !== null) {
       const out: ChatOutput = { ...w, cached: false };
       trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 0 });
-      await cachePut(env, key, kind, { text: out.text, provider: out.provider, model: out.model, tokens: out.tokens }, TTL[kind]);
+      writeCache(env, key, kind, out);
       return { parsed, out };
     }
     console.warn('chatJson_workers_unparseable', { route, len: w.text.length });
   } catch (e) {
     if (e instanceof UpstreamAuthError) throw e;
-    if (e instanceof AllUpstreamError) throw e;
-    console.warn('chatJson_workers_fallthrough', { route, err: String(e) });
+    console.warn('chatJson_workers_fallthrough', { route, err: String(e).slice(0, 200) });
   }
 
-  // 3) OpenRouter JSON cascade.
+  // 3) OpenRouter JSON cascade — fresh deadline.
   const { parsed, result } = await openRouterCascadeJson(
     env,
-    { ...input, temperature: input.temperature ?? 0.4, route, deadlineMs },
+    {
+      ...input,
+      temperature: input.temperature ?? 0.4,
+      route,
+      deadlineMs: Date.now() + openRouterBudget,
+    },
     parse,
   );
   const out: ChatOutput = {
@@ -229,7 +259,7 @@ export const chatJson = async <T>(
     cached: false,
   };
   trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 1 });
-  await cachePut(env, key, kind, { text: out.text, provider: out.provider, model: out.model, tokens: out.tokens }, TTL[kind]);
+  writeCache(env, key, kind, out);
   return { parsed, out };
 };
 
@@ -250,23 +280,15 @@ export const chat = async (
   return myChat(env, route, input, forwarded);
 };
 
-/** Back-compat: legacy direct Workers AI call. */
+/**
+ * Workers-AI-only chat. Used as a back-compat alias by callers that
+ * intentionally bypass the cascade (rare).
+ */
 export const workersChat = async (env: Env, input: ChatInput): Promise<ChatOutput> => {
-  const model = env.WORKERS_AI_MODEL ?? HAIKU_MODEL;
-  const res = await env.AI.run(model as never, {
-    messages: messagesToOpenAI(input.messages, input.system),
-    max_tokens: input.maxTokens ?? 1024,
-    temperature: input.temperature ?? 0.4,
-  } as never);
-  const r = res as { response?: string; usage?: { tokens?: number } };
-  return { text: r.response ?? '', provider: 'workers', model, tokens: r.usage?.tokens ?? 0, cached: false };
+  const w = await workersCascade(env, { ...input, route: 'legacy-workersChat' });
+  return { ...w, cached: false };
 };
 
 // Re-export error types so existing route imports keep working.
 export { AllUpstreamError, UpstreamAuthError, JsonCascadeError };
 export type { CascadeResult };
-
-// Mark `HEDGE` and `messagesToOpenAI` as used (kept for downstream callers).
-void HEDGE;
-void messagesToOpenAI;
-void resolveWorkersAiModels;
