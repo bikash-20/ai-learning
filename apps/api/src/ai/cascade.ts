@@ -301,8 +301,14 @@ export const openRouterCascade = async (
       return outcome.result;
     }
 
-    // transport error — fall through, mark breaker
-    markFailed(model, outcome.reason);
+    // Transport error — fall through. Don't trip the breaker when the
+    // only failure was OUR deadline: the model itself may be perfectly
+    // healthy for a shorter request. Without this guard, a slow OpenRouter
+    // round trips every 60s for 60s and we'd skip a model that would
+    // have succeeded on retry.
+    if (outcome.reason !== 'deadline_exceeded') {
+      markFailed(model, outcome.reason);
+    }
     const attempt: AllUpstreamError['attempts'][number] = {
       model,
       error: outcome.reason,
@@ -390,7 +396,11 @@ export const openRouterCascadeJson = async <T>(
     const first = await tryModel(env, model, input);
     if (first.type === 'auth_fail') throw new UpstreamAuthError(first.error);
     if (first.type === 'transport_error') {
-      markFailed(model, first.reason);
+      // Don't trip the breaker on deadline_exceeded — same rationale as
+      // the text cascade: the upstream may be fine, our budget was tight.
+      if (first.reason !== 'deadline_exceeded') {
+        markFailed(model, first.reason);
+      }
       transportAttempts.push(
         first.status !== undefined
           ? { model, status: first.status, error: first.reason, latencyMs: first.latencyMs }
@@ -482,6 +492,10 @@ const callWorkersModel = async (
   const perCallMs = input.deadlineMs !== undefined
     ? Math.min(WORKERS_TIMEOUT_MS, Math.max(0, input.deadlineMs - Date.now()))
     : WORKERS_TIMEOUT_MS;
+  // Keep a handle on the timeout so we can clear it in the finally block.
+  // Without this every Workers AI attempt leaks one timer until the
+  // process exits — small but real on a long-lived isolate.
+  let timer: ReturnType<typeof setTimeout> | null = null;
   try {
     const res = (await Promise.race([
       env.AI.run(model as never, {
@@ -490,7 +504,7 @@ const callWorkersModel = async (
         temperature: input.temperature ?? 0.4,
       } as never),
       new Promise((_resolve, reject) => {
-        setTimeout(() => reject(new Error('workers_timeout')), perCallMs);
+        timer = setTimeout(() => reject(new Error('workers_timeout')), perCallMs);
       }),
     ])) as { response?: string; usage?: { tokens?: number } };
     const latencyMs = Date.now() - start;
@@ -523,13 +537,25 @@ const callWorkersModel = async (
       reason: isDeadline ? 'deadline_exceeded' : isTimeout ? 'timeout' : `exception:${msg.slice(0, 80)}`,
       latencyMs,
     };
+  } finally {
+    if (timer !== null) clearTimeout(timer);
   }
 };
+
+/** How many Workers AI models to attempt before falling through to OpenRouter.
+ *  Free Workers models occasionally hang past their per-call budget; trying
+ *  all six would burn the whole Workers tier on cold starts. Two is enough
+ *  to ride out a transient first-model failure without burning the budget. */
+const WORKERS_MAX_MODELS = 2;
 
 /**
  * Walk the configured Workers AI model list. Stops on the first success.
  * On total failure throws `AllUpstreamError` so callers can surface a
  * friendly 503 — same shape as the OpenRouter cascade so the two compose.
+ *
+ * Caps at `WORKERS_MAX_MODELS` so a hung first model can't burn the
+ * whole Workers tier. OpenRouter is the canonical fallback and gets a
+ * full fresh tier budget below.
  *
  * Note: Workers AI doesn't have the same 429/402 distinction; we don't mark
  * the OpenRouter breaker for a Workers failure (different namespace).
@@ -538,7 +564,7 @@ export const workersCascade = async (
   env: Env,
   input: CascadeInput,
 ): Promise<CascadeResult> => {
-  const models = resolveWorkersAiModels(env);
+  const models = resolveWorkersAiModels(env).slice(0, WORKERS_MAX_MODELS);
   let lastReason = 'unknown';
   for (const model of models) {
     const outcome = await callWorkersModel(env, model, input);
@@ -549,5 +575,251 @@ export const workersCascade = async (
     `All Workers AI models failed (${lastReason}). Falling back to OpenRouter.`,
     'upstream',
     models.map((m) => ({ model: m, error: lastReason, latencyMs: 0 })),
+  );
+};
+
+/**
+ * Streaming OpenRouter cascade for chat. Walks the configured model list;
+ * for each model, fires a `stream: true` chat completion and yields text
+ * deltas as they arrive via the SSE stream from OpenRouter. If the first
+ * model doesn't produce a token within `firstTokenTimeoutMs`, abort that
+ * stream and move on to the next model — so a stalled free model can't
+ * burn the user's whole chat budget. Once a stream yields its first
+ * token, it's "committed" and we read it to completion (no further
+ * timeouts; that would chop the response in half).
+ *
+ * Returns `{ provider: 'openrouter', model, text }` on success. Throws
+ * `AllUpstreamError` if no model produces any token, `UpstreamAuthError`
+ * on a 401 (fail fast).
+ *
+ * The breaker is not marked here on `first-token timeout` — a model that
+ * was just slow for this prompt may be fine for the next one.
+ */
+export type StreamResult = {
+  text: string;
+  provider: 'openrouter';
+  model: string;
+  latencyMs: number;
+  firstTokenAtMs: number;
+};
+
+export type StreamSink = (event: { kind: 'token'; text: string }) => void;
+
+const FIRST_TOKEN_TIMEOUT_MS = 8_000;
+
+/** Try one OpenRouter stream. Returns `{ kind: 'success'|'transport_error'|'auth_fail' }`. */
+const tryStreamModel = async (
+  env: Env,
+  model: string,
+  input: CascadeInput & { firstTokenTimeoutMs?: number },
+  sink: StreamSink,
+): Promise<
+  | { kind: 'success'; result: StreamResult }
+  | { kind: 'transport_error'; reason: string; latencyMs: number }
+  | { kind: 'auth_fail'; error: string }
+> => {
+  const start = Date.now();
+  const firstTokenTimeoutMs = input.firstTokenTimeoutMs ?? FIRST_TOKEN_TIMEOUT_MS;
+  // We don't accept a longer deadline than the cascade's overall budget.
+  const overallDeadline = input.deadlineMs !== undefined ? input.deadlineMs : start + 60_000;
+
+  const ctl = new AbortController();
+  // First-token watchdog. Once the first token lands we clear this timer
+  // and switch to "ride the stream to completion" mode.
+  const firstTokenTimer = setTimeout(() => {
+    ctl.abort(new Error('first_token_timeout'));
+  }, firstTokenTimeoutMs);
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://quantara.app',
+        'X-Title': 'quantara',
+      },
+      body: JSON.stringify({
+        model,
+        stream: true,
+        messages: [
+          ...(input.system ? [{ role: 'system' as const, content: input.system }] : []),
+          ...input.messages.map((m) => ({ role: m.role, content: m.content })),
+        ],
+        max_tokens: input.maxTokens ?? 1024,
+        temperature: input.temperature ?? 0.4,
+      }),
+      signal: ctl.signal,
+    });
+
+    if (res.status === 401) {
+      return { kind: 'auth_fail', error: 'openrouter 401 (bad key)' };
+    }
+    if (!res.ok || !res.body) {
+      const text = await res.text().catch(() => '');
+      return {
+        kind: 'transport_error',
+        reason: `status_${res.status}`,
+        latencyMs: Date.now() - start,
+        ...(text ? { error: text.slice(0, 80) } : {}),
+      };
+    }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let acc = '';
+    let firstTokenAtMs = 0;
+    // We treat the first yielded token as "committed": clear the
+    // watchdog and read the stream to completion.
+    let committed = false;
+
+    while (true) {
+      if (Date.now() >= overallDeadline) {
+        if (committed) {
+          // Stream was healthy; just stop here. Caller already has some
+          // text. Return what we got.
+          break;
+        }
+        return {
+          kind: 'transport_error',
+          reason: 'deadline_exceeded',
+          latencyMs: Date.now() - start,
+        };
+      }
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      // SSE frames are separated by blank lines (\n\n). Split into lines
+      // and parse any `data: {json}` payloads.
+      let nlIdx: number;
+      while ((nlIdx = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nlIdx).replace(/\r$/, '');
+        buf = buf.slice(nlIdx + 1);
+        if (line === '') continue;
+        if (line.startsWith(':')) continue;
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (payload === '[DONE]') {
+          // Stream finished.
+          if (committed) {
+            const latencyMs = Date.now() - start;
+            return {
+              kind: 'success',
+              result: { text: acc, provider: 'openrouter', model, latencyMs, firstTokenAtMs },
+            };
+          }
+          // First-token happened to coincide with end-of-stream. Treat as
+          // success anyway if we got text.
+          if (acc.length > 0) {
+            const latencyMs = Date.now() - start;
+            return {
+              kind: 'success',
+              result: { text: acc, provider: 'openrouter', model, latencyMs, firstTokenAtMs },
+            };
+          }
+          return {
+            kind: 'transport_error',
+            reason: 'empty_stream',
+            latencyMs: Date.now() - start,
+          };
+        }
+        try {
+          const j = JSON.parse(payload) as {
+            choices?: { delta?: { content?: string }; finish_reason?: string }[];
+          };
+          const delta = j.choices?.[0]?.delta?.content;
+          if (typeof delta === 'string' && delta.length > 0) {
+            if (!committed) {
+              committed = true;
+              clearTimeout(firstTokenTimer);
+              firstTokenAtMs = Date.now() - start;
+            }
+            acc += delta;
+            sink({ kind: 'token', text: delta });
+          }
+        } catch {
+          // Malformed line — skip it.
+        }
+      }
+    }
+    const latencyMs = Date.now() - start;
+    if (acc.length > 0) {
+      return {
+        kind: 'success',
+        result: { text: acc, provider: 'openrouter', model, latencyMs, firstTokenAtMs: firstTokenAtMs || latencyMs },
+      };
+    }
+    return {
+      kind: 'transport_error',
+      reason: 'empty_stream',
+      latencyMs,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Distinguish first-token timeout (our watchdog aborted) from a
+    // generic abort / timeout. The fetch chain surfaces AbortError;
+    // the original abort reason lives on ctl.signal.reason.
+    if (ctl.signal.aborted) {
+      const reason = ctl.signal.reason;
+      const reasonMsg = reason instanceof Error ? reason.message : String(reason ?? '');
+      if (reasonMsg.toLowerCase().includes('first_token_timeout')) {
+        return {
+          kind: 'transport_error',
+          reason: 'first_token_timeout',
+          latencyMs: Date.now() - start,
+        };
+      }
+    }
+    if (msg.toLowerCase().includes('first_token_timeout')) {
+      return {
+        kind: 'transport_error',
+        reason: 'first_token_timeout',
+        latencyMs: Date.now() - start,
+      };
+    }
+    const isDeadline = Date.now() >= overallDeadline;
+    return {
+      kind: 'transport_error',
+      reason: isDeadline ? 'deadline_exceeded' : `exception:${msg.slice(0, 80)}`,
+      latencyMs: Date.now() - start,
+    };
+  } finally {
+    clearTimeout(firstTokenTimer);
+  }
+};
+
+/**
+ * OpenRouter stream cascade. Tries each configured model with the same
+ * first-token watchdog. Stops on the first model that yields any token.
+ */
+export const openRouterStreamCascade = async (
+  env: Env,
+  input: CascadeInput & { firstTokenTimeoutMs?: number },
+  sink: StreamSink,
+): Promise<StreamResult> => {
+  if (!env.OPENROUTER_API_KEY) throw new UpstreamAuthError('OPENROUTER_API_KEY missing');
+  const models = resolveModelList(env);
+  const attempts: AllUpstreamError['attempts'] = [];
+  for (const model of models) {
+    const outcome = await tryStreamModel(env, model, input, sink);
+    if (outcome.kind === 'auth_fail') {
+      throw new UpstreamAuthError(outcome.error);
+    }
+    if (outcome.kind === 'success') {
+      return outcome.result;
+    }
+    // Transport error / empty / first-token timeout — try next model.
+    // Don't trip the breaker on first_token_timeout or deadline_exceeded:
+    // the upstream may be perfectly fine for a shorter request.
+    if (outcome.reason !== 'first_token_timeout' && outcome.reason !== 'deadline_exceeded') {
+      markFailed(model, outcome.reason);
+    }
+    attempts.push({ model, error: outcome.reason, latencyMs: outcome.latencyMs });
+  }
+  throw new AllUpstreamError(
+    'All AI models failed to produce a stream. Please try again shortly.',
+    'upstream',
+    attempts,
   );
 };

@@ -32,18 +32,20 @@ export type ChatOutput = {
  * Per-tier deadlines. Each tier owns its full budget — Workers AI failure
  * (e.g. cold start timeout) must not consume OpenRouter's budget.
  *
- *   - Workers AI: 8s. Six configured models, each capped at 12s, but the
- *     cascade breaker + small budget cap total wall-time.
- *   - OpenRouter: 15s. Free-tier models can be slow; we need enough
- *     headroom for the first model to come back.
+ *   - Workers AI: 7s total. The cascade walks at most `WORKERS_MAX_MODELS`
+ *     models in `cascade.ts`, so 7s covers two cold starts at ~3.5s each.
+ *   - OpenRouter: 18s starting WHEN THE TIER STARTS (not at request start).
+ *     Set via `Date.now() + openRouterBudget` so Workers AI's clock
+ *     consumption never shortens OpenRouter's window. Free-tier models
+ *     can be slow; we need enough headroom for the first model to come back.
  *
  * Before 2026-10-04 both tiers shared a single 22s budget, so Workers AI
  * frequently consumed it all and OpenRouter started already expired. That
  * manifested as `chat` and `flashcards/decks/generate` returning
  * `503 UPSTREAM_UNAVAILABLE` even when healthy models were configured.
  */
-const WORKERS_TIER_MS = 8_000;
-const OPENROUTER_TIER_MS = 15_000;
+const WORKERS_TIER_MS = 7_000;
+const OPENROUTER_TIER_MS = 18_000;
 
 /** TTLs in seconds. Per-kind so explanations can outlive free-tier quotas. */
 const TTL: Record<CacheKind, number> = {

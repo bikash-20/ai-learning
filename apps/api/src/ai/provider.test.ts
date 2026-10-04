@@ -69,7 +69,7 @@ vi.mock('./cascade', () => {
 const { myChat, chatJson, AllUpstreamError, UpstreamAuthError } = await import('./provider');
 const { cachePut } = await import('../lib/aicache');
 
-const env = {} as ConstructorParameters<typeof myChat>[0];
+const env = {} as Parameters<typeof myChat>[0];
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -124,8 +124,10 @@ describe('myChat cascade', () => {
   });
 
   it('gives OpenRouter a fresh deadline independent of Workers AI budget', async () => {
-    // Workers AI: deadlineMs ~ start + 8s. OpenRouter: deadlineMs ~ start + 15s.
-    // Verify the OpenRouter deadlineMs is GREATER than the Workers deadlineMs.
+    // Workers AI: deadlineMs ~ start + 7s. OpenRouter: deadlineMs is
+    // computed when the tier starts (NOT at request start) and gets 18s.
+    // Verify the OpenRouter deadlineMs is meaningfully GREATER than the
+    // Workers deadlineMs.
     let workersDeadline = 0;
     let orDeadline = 0;
     let baseline = 0;
@@ -143,8 +145,9 @@ describe('myChat cascade', () => {
     await myChat(env, 'chat', { messages: [{ role: 'user', content: 'ping' }] });
     expect(workersDeadline).toBeGreaterThan(baseline);
     expect(orDeadline).toBeGreaterThan(workersDeadline);
-    // Specifically: OpenRouter deadline should be Workers deadline + ~7s
-    // (15s - 8s). Allow a 50ms slack for the test wall-clock.
+    // Specifically: OpenRouter gets a fresh ~18s budget (Workers used ~7s).
+    // The gap should be ~11s (18 - 7). Allow a generous 5_000ms slack for
+    // test wall-clock + scheduling jitter.
     expect(orDeadline - workersDeadline).toBeGreaterThan(5_000);
   });
 
