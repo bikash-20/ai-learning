@@ -67,12 +67,16 @@ vi.mock('./cascade', () => {
 });
 
 const { myChat, chatJson, AllUpstreamError, UpstreamAuthError } = await import('./provider');
-const { cachePut } = await import('../lib/aicache');
+const { cacheGet, cachePut } = await import('../lib/aicache');
 
 const env = {} as Parameters<typeof myChat>[0];
 
 afterEach(() => {
   vi.clearAllMocks();
+  mockWorkersCascade.mockReset();
+  mockOpenRouterCascade.mockReset();
+  mockOpenRouterCascadeJson.mockReset();
+  if (vi.isMockFunction(Date.now)) vi.mocked(Date.now).mockRestore();
 });
 
 describe('myChat cascade', () => {
@@ -103,12 +107,15 @@ describe('myChat cascade', () => {
     expect(mockOpenRouterCascade).toHaveBeenCalledTimes(1);
   });
 
-  it('rethrows UpstreamAuthError immediately without trying OpenRouter', async () => {
+  it('falls through to OpenRouter when Workers AI throws UpstreamAuthError', async () => {
     mockWorkersCascade.mockRejectedValueOnce(new UpstreamAuthError('bad key'));
-    await expect(
-      myChat(env, 'chat', { messages: [{ role: 'user', content: 'ping' }] }),
-    ).rejects.toBeInstanceOf(UpstreamAuthError);
-    expect(mockOpenRouterCascade).not.toHaveBeenCalled();
+    mockOpenRouterCascade.mockResolvedValueOnce({
+      text: 'openrouter recovered', provider: 'openrouter', model: 'qwen3', tokens: 4, latencyMs: 100,
+    });
+    const out = await myChat(env, 'chat', { messages: [{ role: 'user', content: 'ping' }] });
+    expect(out.provider).toBe('openrouter');
+    expect(out.text).toBe('openrouter recovered');
+    expect(mockOpenRouterCascade).toHaveBeenCalledTimes(1);
   });
 
   it('propagates AllUpstreamError when BOTH tiers fail', async () => {
@@ -151,6 +158,45 @@ describe('myChat cascade', () => {
     expect(orDeadline - workersDeadline).toBeGreaterThan(5_000);
   });
 
+  it('starts the Workers budget after the cache lookup', async () => {
+    let clock = 1_800_000_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    vi.mocked(cacheGet).mockImplementationOnce(async () => {
+      clock += 12_000;
+      return null;
+    });
+    let workersDeadline = 0;
+    mockWorkersCascade.mockImplementationOnce(async (_env, input: { deadlineMs?: number }) => {
+      workersDeadline = input.deadlineMs ?? 0;
+      return { text: 'workers ok', provider: 'workers', model: 'llama', tokens: 1, latencyMs: 1 };
+    });
+
+    await myChat(env, 'chat', { messages: [{ role: 'user', content: 'ping' }] });
+
+    expect(workersDeadline - clock).toBe(7_000);
+  });
+
+  it('gives OpenRouter its full budget after Workers consumes its tier budget', async () => {
+    let clock = 1_800_000_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    let workersDeadline = 0;
+    let openRouterDeadline = 0;
+    mockWorkersCascade.mockImplementationOnce(async (_env, input: { deadlineMs?: number }) => {
+      workersDeadline = input.deadlineMs ?? 0;
+      clock = workersDeadline;
+      throw new AllUpstreamError('workers tier exhausted', 'upstream', []);
+    });
+    mockOpenRouterCascade.mockImplementationOnce(async (_env, input: { deadlineMs?: number }) => {
+      openRouterDeadline = input.deadlineMs ?? 0;
+      return { text: 'ok', provider: 'openrouter', model: 'qwen3', tokens: 1, latencyMs: 50 };
+    });
+
+    await myChat(env, 'chat', { messages: [{ role: 'user', content: 'ping' }] });
+
+    expect(workersDeadline).toBe(1_800_000_007_000);
+    expect(openRouterDeadline - workersDeadline).toBe(18_000);
+  });
+
   it('shrinks both tier budgets when caller passes budgetMs', async () => {
     let workersDeadline = 0;
     let orDeadline = 0;
@@ -169,6 +215,7 @@ describe('myChat cascade', () => {
 
   it('writes the cache as fire-and-forget (does not block the response)', async () => {
     let cachePutResolved = false;
+    const scheduled: Promise<unknown>[] = [];
     vi.mocked(cachePut).mockImplementationOnce(async () => {
       // Simulate a slow D1 round-trip.
       await new Promise((r) => setTimeout(r, 50));
@@ -177,12 +224,17 @@ describe('myChat cascade', () => {
     mockWorkersCascade.mockResolvedValueOnce({
       text: 'fast', provider: 'workers', model: 'm', tokens: 1, latencyMs: 5,
     });
-    const out = await myChat(env, 'chat', { messages: [{ role: 'user', content: 'ping' }] });
+    const out = await myChat(
+      env,
+      'chat',
+      { messages: [{ role: 'user', content: 'ping' }] },
+      { waitUntil: (promise) => scheduled.push(promise) },
+    );
     expect(out.text).toBe('fast');
     // The helper returned BEFORE cachePut resolved.
     expect(cachePutResolved).toBe(false);
-    // Allow the background promise to settle.
-    await new Promise((r) => setTimeout(r, 80));
+    expect(scheduled).toHaveLength(1);
+    await Promise.all(scheduled);
     expect(cachePutResolved).toBe(true);
   });
 });
@@ -208,6 +260,20 @@ describe('chatJson cascade', () => {
     }, parseShape);
     expect(out.out.provider).toBe('openrouter');
     expect(out.parsed.cards).toEqual(['a', 'b', 'c']);
+  });
+
+  it('falls through to OpenRouter when Workers AI throws UpstreamAuthError', async () => {
+    mockWorkersCascade.mockRejectedValueOnce(new UpstreamAuthError('workers unavailable'));
+    mockOpenRouterCascadeJson.mockResolvedValueOnce({
+      parsed: { cards: ['recovered'] },
+      result: { text: '{"cards":["recovered"]}', provider: 'openrouter', model: 'qwen3', tokens: 3, latencyMs: 100 },
+    });
+    const out = await chatJson(env, 'flashcardsGen', {
+      messages: [{ role: 'user', content: 'make 1 card' }],
+    }, parseShape);
+    expect(out.out.provider).toBe('openrouter');
+    expect(out.parsed.cards).toEqual(['recovered']);
+    expect(mockOpenRouterCascadeJson).toHaveBeenCalledTimes(1);
   });
 
   it('falls through to OpenRouter when Workers returns unparseable JSON', async () => {

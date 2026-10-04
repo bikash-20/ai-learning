@@ -54,6 +54,8 @@ const TTL: Record<CacheKind, number> = {
   explanation: 14 * 24 * 60 * 60, // 14d (explanations are stable per (q, answer))
 };
 
+type WaitUntil = (promise: Promise<unknown>) => void;
+
 /**
  * Stable, low-collision cache key per route. The route + temperature +
  * maxTokens are factored in so e.g. `chat` and `chatJson` don't collide.
@@ -79,10 +81,12 @@ const writeCache = (
   key: string,
   kind: CacheKind,
   out: { text: string; provider: 'workers' | 'openrouter'; model: string; tokens: number },
+  waitUntil?: WaitUntil,
 ) => {
-  void cachePut(env, key, kind, out, TTL[kind]).catch((e: unknown) => {
+  const pending = cachePut(env, key, kind, out, TTL[kind]).catch((e: unknown) => {
     console.warn('ai_cache_put_failed', { kind, err: String(e).slice(0, 200) });
   });
+  waitUntil?.(pending);
 };
 
 /**
@@ -99,7 +103,7 @@ export const myChat = async (
   env: Env,
   route: string,
   input: ChatInput,
-  opts: { kind?: CacheKind; authoritative?: boolean; budgetMs?: number } = {},
+  opts: { kind?: CacheKind; authoritative?: boolean; budgetMs?: number; waitUntil?: WaitUntil } = {},
 ): Promise<ChatOutput> => {
   const kind: CacheKind = opts.kind ?? 'text';
   const start = Date.now();
@@ -139,14 +143,13 @@ export const myChat = async (
     const w = await workersCascade(env, {
       ...input,
       route,
-      deadlineMs: start + workersBudget,
+      deadlineMs: Date.now() + workersBudget,
     });
     const out: ChatOutput = { ...w, cached: false };
     trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 0 });
-    writeCache(env, key, kind, out);
+    writeCache(env, key, kind, out, opts.waitUntil);
     return out;
   } catch (e) {
-    if (e instanceof UpstreamAuthError) throw e;
     console.warn('workers_ai_fallback', { route, err: String(e).slice(0, 200) });
   }
 
@@ -159,7 +162,7 @@ export const myChat = async (
   });
   const out: ChatOutput = { ...fallback, cached: false };
   trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 1 });
-  writeCache(env, key, kind, out);
+  writeCache(env, key, kind, out, opts.waitUntil);
   return out;
 };
 
@@ -180,7 +183,7 @@ export const chatJson = async <T>(
   route: string,
   input: ChatInput,
   parse: (raw: unknown) => T,
-  opts: { budgetMs?: number } = {},
+  opts: { budgetMs?: number; waitUntil?: WaitUntil } = {},
 ): Promise<{ parsed: T; out: ChatOutput }> => {
   const kind: CacheKind = 'json';
   const start = Date.now();
@@ -227,18 +230,17 @@ export const chatJson = async <T>(
     const w = await workersCascade(env, {
       ...input,
       route,
-      deadlineMs: start + workersBudget,
+      deadlineMs: Date.now() + workersBudget,
     });
     const parsed = tryParse(w.text);
     if (parsed !== null) {
       const out: ChatOutput = { ...w, cached: false };
       trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 0 });
-      writeCache(env, key, kind, out);
+      writeCache(env, key, kind, out, opts.waitUntil);
       return { parsed, out };
     }
     console.warn('chatJson_workers_unparseable', { route, len: w.text.length });
   } catch (e) {
-    if (e instanceof UpstreamAuthError) throw e;
     console.warn('chatJson_workers_fallthrough', { route, err: String(e).slice(0, 200) });
   }
 
@@ -261,7 +263,7 @@ export const chatJson = async <T>(
     cached: false,
   };
   trackAI(env, { ...out, route, latencyMs: Date.now() - start, cacheHit: 0, fallback: 1 });
-  writeCache(env, key, kind, out);
+  writeCache(env, key, kind, out, opts.waitUntil);
   return { parsed, out };
 };
 
@@ -275,10 +277,11 @@ export const chat = async (
   env: Env,
   route: string,
   input: ChatInput,
-  opts: { authoritative?: boolean } = {},
+  opts: { authoritative?: boolean; waitUntil?: WaitUntil } = {},
 ): Promise<ChatOutput> => {
-  const forwarded: { kind: 'text'; authoritative?: boolean } = { kind: 'text' };
+  const forwarded: { kind: 'text'; authoritative?: boolean; waitUntil?: WaitUntil } = { kind: 'text' };
   if (opts.authoritative !== undefined) forwarded.authoritative = opts.authoritative;
+  if (opts.waitUntil !== undefined) forwarded.waitUntil = opts.waitUntil;
   return myChat(env, route, input, forwarded);
 };
 

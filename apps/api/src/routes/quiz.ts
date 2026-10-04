@@ -121,7 +121,9 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
         messages: [{ role: 'user', content: QUIZ_GEN_PROMPT(body.topic, body.level, body.n) }],
         temperature: 0.4,
         maxTokens: 1800,
-      }, QuizItemsJson.parse);
+      }, QuizItemsJson.parse, {
+        waitUntil: (promise) => c.executionCtx.waitUntil(promise),
+      });
       const items = parsed.items;
       if (items.length === 0) {
         return c.json(
@@ -186,7 +188,11 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
             messages: [{ role: 'user', content: EXPLAIN_PROMPT(it.prompt, correctText) }],
             maxTokens: 200,
             temperature: 0.3,
-          }, { kind: 'explanation', authoritative: true }).catch((e) => {
+          }, {
+            kind: 'explanation',
+            authoritative: true,
+            waitUntil: (promise) => c.executionCtx.waitUntil(promise),
+          }).catch((e) => {
             console.warn('explain_fallback', { route: 'explain', err: String(e) });
             return null;
           });
@@ -262,19 +268,28 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
           maxTokens: 220,
           temperature: 0.3,
         },
-        { kind: 'explanation', authoritative: true },
+        {
+          kind: 'explanation',
+          authoritative: true,
+          waitUntil: (promise) => c.executionCtx.waitUntil(promise),
+        },
       );
 
       // Cache by hand here using the stable key — myChat's auto-key would
       // include the dynamic picked text, but the pickedIdx is the only
       // variable that matters semantically.
       const { cachePut } = await import('../lib/aicache');
-      await cachePut(c.env, key, 'explanation', {
+      c.executionCtx.waitUntil(cachePut(c.env, key, 'explanation', {
         text: out.text,
         provider: out.provider,
         model: out.model,
         tokens: out.tokens,
-      }, 14 * 24 * 60 * 60);
+      }, 14 * 24 * 60 * 60).catch((e: unknown) => {
+        console.warn('ai_cache_put_failed', {
+          kind: 'explanation',
+          err: String(e).slice(0, 200),
+        });
+      }));
 
       return c.json({
         explanation: out.text.slice(0, 600),
@@ -319,6 +334,7 @@ export const quizRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
           maxTokens: 1800,
         },
         QuizItemsJson.parse,
+        { waitUntil: (promise) => c.executionCtx.waitUntil(promise) },
       );
       const items = parsed.items;
       if (items.length === 0) {

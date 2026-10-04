@@ -5,6 +5,7 @@ import { rateLimit } from '../lib/ratelimit';
 import { trackAI } from '../lib/analytics';
 import {
   openRouterStreamCascade,
+  workersStreamCascade,
   AllUpstreamError,
   UpstreamAuthError,
 } from '../ai/cascade';
@@ -32,21 +33,22 @@ import * as schema from '../db/schema';
  *   data: {"code":"UPSTREAM_UNAVAILABLE","message":"..."}\n
  *   \n
  *
- * Cascade (chat-specific): OpenRouter `stream: true` with an 8s first-token
- * watchdog per model. If a model fails to produce ANY token within 8s we
- * abort that stream and try the next one — a stalled free-tier model can't
- * burn the whole chat budget. Once a stream yields its first token we
- * read it to completion (no further timeouts — that would chop the reply
- * in half).
+ * Cascade (chat-specific): Workers AI stream is the primary (free, no key
+ * required, healthy today); OpenRouter stream cascade is the fallback when
+ * Workers AI fails. Each tier uses an 8s first-token watchdog per model.
+ * If a model fails to produce ANY token within the watchdog we abort that
+ * stream and try the next one — a stalled free-tier model can't burn the
+ * whole chat budget. Once a stream yields its first token we read it to
+ * completion (no further timeouts — that would chop the reply in half).
  *
  * No 24h cache: chat is conversational. Cache keys for chat would depend on
  * the full history, so only idle clients would ever collide, and users
  * expect their reply to reflect what they actually typed.
  *
- * Workers AI is intentionally NOT tried for chat — streaming SSE through
- * Workers AI requires gateway plumbing we haven't wired, and the chat
- * latency target (~12s typical) is fine on OpenRouter alone. Workers AI
- * remains primary for JSON routes (flashcards/quiz).
+ * Workers AI streaming IS tried for chat — via `env.AI.run(model,
+ * { stream: true, ... })`, which returns a `ReadableStream<Uint8Array>` of
+ * SSE frames. It's been the chat primary since the cascade-hardening-v3
+ * fix that restored chat when every OpenRouter free-tier model was 429'd.
  *
  * Failure modes:
  *   - Pre-token failure (no model produced any token): the SSE stream
@@ -140,21 +142,56 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
             }
           };
 
-          const result = await openRouterStreamCascade(
-            c.env,
-            {
-              messages: body.messages,
-              system: SYSTEM_STEM(body.mode),
-              maxTokens: 1024,
-              route: 'chat',
-            },
-            sink,
-          );
+          // Chat primary is Workers AI (always free, currently healthy)
+          // with OpenRouter as a true fallback. If Workers fails (every
+          // model in its stream cascade), try OpenRouter before surfacing
+          // a 503 — so an OpenRouter :free rate-limit can't make chat
+          // unusable when Workers AI is fine, and vice versa.
+          const cascadeInput = {
+            messages: body.messages,
+            system: SYSTEM_STEM(body.mode),
+            maxTokens: 1024,
+            route: 'chat',
+          } as const;
+
+          type ChatResult = {
+            provider: 'workers' | 'openrouter';
+            model: string;
+            text: string;
+            firstTokenAtMs: number;
+            fallback: 0 | 1;
+          };
+          let result: ChatResult;
+          try {
+            const w = await workersStreamCascade(c.env, cascadeInput, sink);
+            result = {
+              provider: 'workers',
+              model: w.model,
+              text: w.text,
+              firstTokenAtMs: w.firstTokenAtMs,
+              fallback: 0,
+            };
+          } catch (workersErr) {
+            // Workers exhausted → fall through to OpenRouter with a fresh
+            // tier budget. Mark fallback=1 in analytics so we can see
+            // how often Workers is the bottleneck.
+            console.warn('chat_workers_fallback', {
+              userId, conversationId, err: String(workersErr).slice(0, 200),
+            });
+            const o = await openRouterStreamCascade(c.env, cascadeInput, sink);
+            result = {
+              provider: 'openrouter',
+              model: o.model,
+              text: o.text,
+              firstTokenAtMs: o.firstTokenAtMs,
+              fallback: 1,
+            };
+          }
 
           const latencyMs = Date.now() - start;
 
           sendSse('done', {
-            provider: 'openrouter',
+            provider: result.provider,
             model: result.model,
             tokens: 0,
             cached: false,
@@ -164,13 +201,13 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
           });
 
           trackAI(c.env, {
-            provider: 'openrouter',
+            provider: result.provider,
             model: result.model,
             tokens: 0,
             route: 'chat',
             latencyMs,
             cacheHit: 0,
-            fallback: 1,
+            fallback: result.fallback,
           });
           try {
             await db.insert(schema.conversationMessage).values({
@@ -178,7 +215,7 @@ export const chatRoute = new Hono<{ Bindings: Env; Variables: { userId: string }
               conversationId,
               role: 'assistant',
               content: result.text,
-              provider: 'openrouter',
+              provider: result.provider,
               model: result.model,
               tokens: 0,
             });

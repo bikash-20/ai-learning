@@ -110,6 +110,7 @@ const DECK_BATCH_SIZE = 5;
 
 type GenerateBatchArgs = {
   env: Env;
+  waitUntil?: (promise: Promise<unknown>) => void;
   topic: string;
   level: Level;
   totalN: number;
@@ -212,7 +213,10 @@ async function generateDeckBatch(args: GenerateBatchArgs): Promise<{
           maxTokens: 2048,
         },
         (raw) => FlashDeckGenJson.parse(raw),
-        { budgetMs: perBatchMs },
+        {
+          budgetMs: perBatchMs,
+          ...(args.waitUntil ? { waitUntil: args.waitUntil } : {}),
+        },
       );
       // Take the title from the first batch that produced one.
       if (!title && parsed.title) title = parsed.title;
@@ -388,6 +392,7 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
       const body = FlashDeckGenRequest.parse(await c.req.json());
       const result = await generateDeckBatch({
         env: c.env,
+        waitUntil: (promise) => c.executionCtx.waitUntil(promise),
         topic: body.topic,
         level: body.level,
         totalN: body.n,
@@ -488,6 +493,7 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
 
       const result = await generateDeckBatch({
         env: c.env,
+        waitUntil: (promise) => c.executionCtx.waitUntil(promise),
         topic: body.topic,
         level: body.level,
         totalN: body.n,
@@ -830,7 +836,7 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
         messages: [{ role: 'user', content: card.front }],
         maxTokens: 200,
         temperature: 0.4,
-      });
+      }, { waitUntil: (promise) => c.executionCtx.waitUntil(promise) });
       c.header('X-Model-Used', out.model);
       const hint = out.text.trim().slice(0, 200);
       await db.update(schema.flashCard).set({ hint }).where(eq(schema.flashCard.id, cardId));
@@ -872,7 +878,11 @@ export const flashcardsRoute = new Hono<{ Bindings: Env; Variables: { userId: st
           maxTokens: 600,
           temperature: 0.4,
         },
-        { kind: 'explanation', authoritative: true },
+        {
+          kind: 'explanation',
+          authoritative: true,
+          waitUntil: (promise) => c.executionCtx.waitUntil(promise),
+        },
       );
       c.header('X-Model-Used', out.model);
       return c.json({

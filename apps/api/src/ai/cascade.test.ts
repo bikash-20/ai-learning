@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Env } from '../env';
 import {
   openRouterCascade,
+  openRouterCascadeJson,
   workersCascade,
   openRouterStreamCascade,
   AllUpstreamError,
@@ -104,20 +105,18 @@ afterEach(() => {
 describe('workersCascade (real module)', () => {
   it('caps at WORKERS_MAX_MODELS even when more are configured', async () => {
     const env = baseEnv();
-    // Make every Workers AI model hang so the cascade falls through all of them.
+    // Fail immediately so the overall deadline doesn't prevent later models
+    // from being attempted; this isolates the configured model-count cap.
     vi.mocked(env.AI.run).mockImplementation(
-      () => new Promise(() => { /* hang forever */ }),
+      () => Promise.reject(new Error('workers unavailable')),
     );
-    stubFetch(async () => openRouterOk('model-a:free', 'OR fallback'));
     await expect(
       workersCascade(env, {
         messages: [{ role: 'user', content: 'hi' }],
         route: 'test',
-        deadlineMs: Date.now() + 200, // tight budget forces fallback
       }),
     ).rejects.toBeInstanceOf(AllUpstreamError);
-    // 3 configured Workers models, but the cascade should call at most 2.
-    expect(vi.mocked(env.AI.run).mock.calls.length).toBeLessThanOrEqual(2);
+    expect(vi.mocked(env.AI.run)).toHaveBeenCalledTimes(2);
   });
 
   it('returns the first successful Workers AI result without calling OpenRouter', async () => {
@@ -228,6 +227,43 @@ describe('openRouterCascade + breaker (real module)', () => {
     expect(count).toBe(1);
   });
 
+  it('does NOT mark the JSON breaker when the only failure is deadline_exceeded', async () => {
+    const env = {
+      ...baseEnv(),
+      OPENROUTER_MODELS: 'model-a:free',
+    } as Env;
+    await expect(
+      openRouterCascadeJson(
+        env,
+        {
+          messages: [{ role: 'user', content: 'hi' }],
+          route: 'test',
+          deadlineMs: Date.now() - 100,
+        },
+        (raw) => raw,
+      ),
+    ).rejects.toBeInstanceOf(AllUpstreamError);
+
+    let count = 0;
+    stubFetch(async () => {
+      count++;
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"ok":true}' } }] }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+    const out = await openRouterCascadeJson(
+      env,
+      {
+        messages: [{ role: 'user', content: 'hi' }],
+        route: 'test',
+      },
+      (raw) => raw,
+    );
+    expect(out.result.model).toBe('model-a:free');
+    expect(count).toBe(1);
+  });
+
   it('throws UpstreamAuthError on a 401 and stops the cascade', async () => {
     const env = baseEnv();
     stubFetch(async () => openRouterError(401));
@@ -260,6 +296,36 @@ describe('openRouterCascade + breaker (real module)', () => {
 });
 
 describe('provider → openRouterCascade wiring (Workers hang → OR is called)', () => {
+  it('falls through to OpenRouter when Workers AI hangs through its tier budget', async () => {
+    const { myChat } = await import('./provider');
+    const env = {
+      ...baseEnv(),
+      DB: undefined,
+      ANALYTICS: undefined,
+      RATE_LIMITER: undefined,
+      CHAT_SESSION: undefined,
+    } as unknown as Env;
+    vi.mocked(env.AI.run).mockImplementation(() => new Promise(() => {}));
+
+    let orCalls = 0;
+    stubFetch(async () => {
+      orCalls++;
+      return openRouterOk('model-a:free', 'OpenRouter recovered after Workers timeout');
+    });
+
+    const out = await myChat(
+      env,
+      'test',
+      { messages: [{ role: 'user', content: 'hi' }] },
+      { budgetMs: 80 },
+    );
+
+    expect(vi.mocked(env.AI.run)).toHaveBeenCalledTimes(1);
+    expect(orCalls).toBe(1);
+    expect(out.provider).toBe('openrouter');
+    expect(out.text).toBe('OpenRouter recovered after Workers timeout');
+  });
+
   it('falls through from Workers to OpenRouter when Workers fails', async () => {
     // This test exercises the actual provider helper (real `myChat`) by
     // mocking only the network primitives (fetch + env.AI.run) — so we
@@ -432,4 +498,114 @@ describe('openRouterStreamCascade (chat path)', () => {
     // Three models attempted (one per configured model).
     expect(streams.length).toBe(3);
   });
+});
+
+describe('workersStreamCascade (chat path)', () => {
+  // Import the cascade-level function under test lazily so the mocks above
+  // are already in place when the module is loaded.
+  const importWorkers = async () => {
+    const mod = await import('./cascade');
+    return mod.workersStreamCascade;
+  };
+
+  /** Build a Workers AI stream of SSE frames from an array of token strings.
+   *  Matches the wire format: `data: {"response":"..."}\n\n` per token,
+   *  terminated by `data: [DONE]\n\n`. */
+  const workersStreamFromTokens = (tokens: string[]): ReadableStream<Uint8Array> => {
+    const enc = new TextEncoder();
+    return new ReadableStream<Uint8Array>({
+      start(ctrl) {
+        for (const t of tokens) {
+          ctrl.enqueue(enc.encode(`data: ${JSON.stringify({ response: t })}\n\n`));
+        }
+        ctrl.enqueue(enc.encode(`data: [DONE]\n\n`));
+        ctrl.close();
+      },
+    });
+  };
+
+  /** A hanging stream whose reader.read() rejects when the given signal
+   *  aborts. Mirrors the OpenRouter test helper `makeControlledStream`. */
+  const makeControlledWorkersStream = (signal: AbortSignal): ReadableStream<Uint8Array> => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        signal.addEventListener('abort', () => {
+          controller.error(new DOMException('aborted', 'AbortError'));
+        });
+      },
+    });
+    return stream;
+  };
+
+  it('returns the full token stream + firstTokenAtMs on a healthy single-model cascade', async () => {
+    const env = baseEnv();
+    vi.mocked(env.AI.run).mockResolvedValueOnce(
+      workersStreamFromTokens(['Hi', ' there']) as never,
+    );
+    const workersStreamCascade = await importWorkers();
+    const tokens: string[] = [];
+    const out = await workersStreamCascade(
+      env,
+      { messages: [{ role: 'user', content: 'hi' }], route: 'test', firstTokenTimeoutMs: 500 },
+      (e) => { if (e.kind === 'token') tokens.push(e.text); },
+    );
+    expect(out.provider).toBe('workers');
+    expect(out.text).toBe('Hi there');
+    expect(out.model).toBe('@cf/llama-primary');
+    expect(out.firstTokenAtMs).toBeGreaterThanOrEqual(0);
+    expect(tokens.join('')).toBe('Hi there');
+  });
+
+  it('advances to the next model on first-token timeout', async () => {
+    const env = baseEnv();
+    // The cascade passes ctl.signal as the abort signal to env.AI.run. We
+    // mock env.AI.run to honor the signal: capture it, and build a stream
+    // that errors when the signal aborts (mirrors how a hung upstream
+    // reacts to an aborted request).
+    vi.mocked(env.AI.run).mockImplementation(((_model: unknown, _input: unknown, opts?: { signal?: AbortSignal }) => {
+      const signal = opts?.signal ?? new AbortController().signal;
+      return Promise.resolve(makeControlledWorkersStream(signal) as never);
+    }) as never);
+    // Queue the second model to return actual tokens once the first aborts.
+    const fallback = workersStreamFromTokens(['fallback']);
+    const origImpl = vi.mocked(env.AI.run).getMockImplementation();
+    let calls_ = 0;
+    vi.mocked(env.AI.run).mockImplementation(((
+      model: string,
+      input: Parameters<typeof env.AI.run>[1],
+      opts?: Parameters<typeof env.AI.run>[2],
+    ) => {
+      calls_++;
+      if (calls_ === 1) return origImpl!(model, input, opts);
+      return Promise.resolve(fallback as never);
+    }) as never);
+    const workersStreamCascade = await importWorkers();
+    const tokens: string[] = [];
+    const out = await workersStreamCascade(
+      env,
+      { messages: [{ role: 'user', content: 'hi' }], route: 'test', firstTokenTimeoutMs: 50 },
+      (e) => { if (e.kind === 'token') tokens.push(e.text); },
+    );
+    expect(out.model).toBe('@cf/llama-secondary');
+    expect(out.text).toBe('fallback');
+    expect(tokens.join('')).toBe('fallback');
+    expect(vi.mocked(env.AI.run)).toHaveBeenCalledTimes(2);
+  }, 5_000);
+
+  it('throws AllUpstreamError when every Workers stream attempt fails', async () => {
+    const env = baseEnv();
+    vi.mocked(env.AI.run).mockImplementation(((_model: unknown, _input: unknown, opts?: { signal?: AbortSignal }) => {
+      const signal = opts?.signal ?? new AbortController().signal;
+      return Promise.resolve(makeControlledWorkersStream(signal) as never);
+    }) as never);
+    const workersStreamCascade = await importWorkers();
+    await expect(
+      workersStreamCascade(
+        env,
+        { messages: [{ role: 'user', content: 'hi' }], route: 'test', firstTokenTimeoutMs: 50 },
+        () => { /* no-op */ },
+      ),
+    ).rejects.toBeInstanceOf(AllUpstreamError);
+    expect(vi.mocked(env.AI.run)).toHaveBeenCalledTimes(2);
+  }, 5_000);
 });

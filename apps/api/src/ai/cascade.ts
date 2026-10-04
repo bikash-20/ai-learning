@@ -542,10 +542,7 @@ const callWorkersModel = async (
   }
 };
 
-/** How many Workers AI models to attempt before falling through to OpenRouter.
- *  Free Workers models occasionally hang past their per-call budget; trying
- *  all six would burn the whole Workers tier on cold starts. Two is enough
- *  to ride out a transient first-model failure without burning the budget. */
+/** Limit Workers attempts so the tier can fall through to OpenRouter promptly. */
 const WORKERS_MAX_MODELS = 2;
 
 /**
@@ -579,6 +576,206 @@ export const workersCascade = async (
 };
 
 /**
+ * Streaming Workers AI cascade. Used by the chat route so chat has a
+ * non-OpenRouter primary when OpenRouter free-tier models are rate-limited.
+ *
+ * For each configured model, calls `env.AI.run(model, { stream: true, ... })`,
+ * which returns a `ReadableStream<Uint8Array>` of SSE-shaped frames in the
+ * form `data: {"response":"..."}\n\n` ending with `data: [DONE]\n\n`. We
+ * surface text deltas via `sink` as soon as they arrive, exactly mirroring
+ * the OpenRouter stream cascade contract.
+ *
+ * If the first model fails to emit any token within `firstTokenTimeoutMs`,
+ * we abort that stream and try the next model — so a cold-starting model
+ * can't burn the whole chat budget. Once a stream yields its first token,
+ * it's "committed" and we read it to completion (no further timeouts;
+ * that would chop the response in half).
+ *
+ * Caps at `WORKERS_STREAM_MAX_MODELS` so we don't try every configured
+ * Workers model before giving up.
+ *
+ * Throws `AllUpstreamError` when no model produces any token. Does NOT
+ * mark the OpenRouter breaker (different upstream namespace).
+ */
+export type WorkersStreamResult = {
+  text: string;
+  provider: 'workers';
+  model: string;
+  latencyMs: number;
+  firstTokenAtMs: number;
+};
+
+const WORKERS_STREAM_MAX_MODELS = 2;
+
+const tryWorkersStreamModel = async (
+  env: Env,
+  model: string,
+  input: CascadeInput & { firstTokenTimeoutMs?: number },
+  sink: StreamSink,
+): Promise<
+  | { kind: 'success'; result: WorkersStreamResult }
+  | { kind: 'transport_error'; reason: string; latencyMs: number }
+> => {
+  const start = Date.now();
+  const firstTokenTimeoutMs = input.firstTokenTimeoutMs ?? FIRST_TOKEN_TIMEOUT_MS;
+
+  const ctl = new AbortController();
+  const firstTokenTimer = setTimeout(() => {
+    ctl.abort(new Error('first_token_timeout'));
+  }, firstTokenTimeoutMs);
+
+  try {
+    // The streaming overload of `env.AI.run` returns `Promise<ReadableStream>`,
+    // but with `model as never` TS can't pick that overload — it sees the
+    // batch (`AiAsyncBatchResponse`) one instead. Force it via a single
+    // through-unknown cast on the whole call.
+    const stream = (await (env.AI.run as unknown as (
+      m: string,
+      i: unknown,
+      o?: unknown,
+    ) => Promise<ReadableStream<Uint8Array>>)(
+      model,
+      {
+        stream: true,
+        messages: messagesToOpenAI(input.messages, input.system),
+        max_tokens: input.maxTokens ?? 1024,
+        temperature: input.temperature ?? 0.4,
+      },
+      {
+        // Bind the abort signal so the first-token watchdog can actually
+        // cancel the in-flight inference. Without this, the timer fires but
+        // env.AI.run keeps reading the (hung) response and we never advance.
+        signal: ctl.signal,
+      },
+    ));
+
+    const reader = stream.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let acc = '';
+    let firstTokenAtMs = 0;
+    let committed = false;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nlIdx: number;
+      while ((nlIdx = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, nlIdx).replace(/\r$/, '');
+        buf = buf.slice(nlIdx + 1);
+        if (line === '') continue;
+        if (line.startsWith(':')) continue;
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (payload === '[DONE]') {
+          const latencyMs = Date.now() - start;
+          if (committed || acc.length > 0) {
+            return {
+              kind: 'success',
+              result: {
+                text: acc,
+                provider: 'workers',
+                model,
+                latencyMs,
+                firstTokenAtMs: firstTokenAtMs || latencyMs,
+              },
+            };
+          }
+          return {
+            kind: 'transport_error',
+            reason: 'empty_stream',
+            latencyMs,
+          };
+        }
+        try {
+          const j = JSON.parse(payload) as { response?: unknown };
+          const token = typeof j.response === 'string' ? j.response : '';
+          if (token.length > 0) {
+            if (!committed) {
+              committed = true;
+              clearTimeout(firstTokenTimer);
+              firstTokenAtMs = Date.now() - start;
+            }
+            acc += token;
+            sink({ kind: 'token', text: token });
+          }
+        } catch {
+          // Malformed frame — skip.
+        }
+      }
+    }
+
+    const latencyMs = Date.now() - start;
+    if (acc.length > 0) {
+      return {
+        kind: 'success',
+        result: {
+          text: acc,
+          provider: 'workers',
+          model,
+          latencyMs,
+          firstTokenAtMs: firstTokenAtMs || latencyMs,
+        },
+      };
+    }
+    return {
+      kind: 'transport_error',
+      reason: 'empty_stream',
+      latencyMs,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (ctl.signal.aborted) {
+      const reason = ctl.signal.reason;
+      const reasonMsg = reason instanceof Error ? reason.message : String(reason ?? '');
+      if (reasonMsg.toLowerCase().includes('first_token_timeout')) {
+        return {
+          kind: 'transport_error',
+          reason: 'first_token_timeout',
+          latencyMs: Date.now() - start,
+        };
+      }
+    }
+    if (msg.toLowerCase().includes('first_token_timeout')) {
+      return {
+        kind: 'transport_error',
+        reason: 'first_token_timeout',
+        latencyMs: Date.now() - start,
+      };
+    }
+    return {
+      kind: 'transport_error',
+      reason: `exception:${msg.slice(0, 80)}`,
+      latencyMs: Date.now() - start,
+    };
+  } finally {
+    clearTimeout(firstTokenTimer);
+  }
+};
+
+export const workersStreamCascade = async (
+  env: Env,
+  input: CascadeInput & { firstTokenTimeoutMs?: number },
+  sink: StreamSink,
+): Promise<WorkersStreamResult> => {
+  const models = resolveWorkersAiModels(env).slice(0, WORKERS_STREAM_MAX_MODELS);
+  const attempts: AllUpstreamError['attempts'] = [];
+  for (const model of models) {
+    const outcome = await tryWorkersStreamModel(env, model, input, sink);
+    if (outcome.kind === 'success') return outcome.result;
+    // Don't trip the OpenRouter breaker — different namespace. Just record
+    // for the AllUpstreamError envelope.
+    attempts.push({ model, error: outcome.reason, latencyMs: outcome.latencyMs });
+  }
+  throw new AllUpstreamError(
+    'All Workers AI stream attempts failed. Please try again shortly.',
+    'upstream',
+    attempts,
+  );
+};
+
+/**
  * Streaming OpenRouter cascade for chat. Walks the configured model list;
  * for each model, fires a `stream: true` chat completion and yields text
  * deltas as they arrive via the SSE stream from OpenRouter. If the first
@@ -605,16 +802,8 @@ export type StreamResult = {
 
 export type StreamSink = (event: { kind: 'token'; text: string }) => void;
 
-/**
- * First-token watchdog for the chat SSE cascade. Free-tier OpenRouter models
- * (qwen, nemotron, gemma) routinely take 10–14s to emit the first token on
- * cold start. The previous 8s budget was cutting off otherwise-healthy
- * models mid-reply, leaving the chat client with an empty stream and the
- * user seeing "AI service temporarily unavailable". 14s gives cold starts
- * room to land while keeping the overall chat latency well under the
- * 22s cascade budget.
- */
-const FIRST_TOKEN_TIMEOUT_MS = 14_000;
+/** Advance to the next model promptly if a chat stream emits no first token. */
+const FIRST_TOKEN_TIMEOUT_MS = 8_000;
 
 /** Try one OpenRouter stream. Returns `{ kind: 'success'|'transport_error'|'auth_fail' }`. */
 const tryStreamModel = async (
