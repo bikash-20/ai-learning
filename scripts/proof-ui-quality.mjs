@@ -53,14 +53,18 @@ async function measureH1(page) {
   return await page.evaluate(() => {
     const h1s = Array.from(document.querySelectorAll('h1'));
     if (h1s.length === 0) return null;
-    // Pick the first non-hero h1. The /sign-in hero has fontSize > 30px
-    // AND uses a serif custom font. We exclude only that one.
+    // The /sign-in hero uses Playfair Display (serif family prefix) and
+    // is >30px on desktop / >24px on mobile. Bebas Neue is a display
+    // SANS, so we test the FIRST family token only.
+    const primaryIsSerif = (ff) => {
+      const first = ff.split(',')[0].trim().toLowerCase();
+      return /serif|playfair|noto serif|georgia|times/.test(first);
+    };
     for (const h1 of h1s) {
       const r = h1.getBoundingClientRect();
       const cs = getComputedStyle(h1);
       const fs = parseFloat(cs.fontSize);
-      const isSerif = cs.fontFamily.toLowerCase().includes('serif');
-      if (isSerif && fs > 30) continue; // hero
+      if (primaryIsSerif(cs.fontFamily) && fs > 30) continue;
       return {
         text: (h1.textContent ?? '').trim().slice(0, 60),
         fontSizePx: fs,

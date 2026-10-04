@@ -1,0 +1,254 @@
+{
+  "pages": [
+    {
+      "page": "home",
+      "path": "/",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "dark": false
+      },
+      "overflow": false,
+      "h1": null,
+      "axeViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "nodes": 1
+        }
+      ],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-home-375-light.png"
+    },
+    {
+      "page": "sign-in",
+      "path": "/sign-in",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "dark": false
+      },
+      "overflow": false,
+      "h1": null,
+      "axeViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "nodes": 1
+        }
+      ],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-sign-in-375-light.png"
+    },
+    {
+      "page": "privacy",
+      "path": "/privacy",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "dark": false
+      },
+      "overflow": false,
+      "h1": {
+        "text": "Privacy",
+        "fontSizePx": 28.4,
+        "lineHeightPx": 31.24,
+        "width": 293,
+        "height": 31.234375
+      },
+      "axeViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "nodes": 3
+        }
+      ],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-privacy-375-light.png"
+    },
+    {
+      "page": "terms",
+      "path": "/terms",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "dark": false
+      },
+      "overflow": false,
+      "h1": {
+        "text": "Terms",
+        "fontSizePx": 28.4,
+        "lineHeightPx": 31.24,
+        "width": 293,
+        "height": 31.234375
+      },
+      "axeViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "nodes": 3
+        }
+      ],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-terms-375-light.png"
+    },
+    {
+      "page": "home",
+      "path": "/",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dark": false
+      },
+      "overflow": false,
+      "h1": null,
+      "axeViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "nodes": 1
+        }
+      ],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-home-1280-light.png"
+    },
+    {
+      "page": "sign-in",
+      "path": "/sign-in",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dark": false
+      },
+      "overflow": false,
+      "h1": null,
+      "axeViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "nodes": 1
+        }
+      ],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-sign-in-1280-light.png"
+    },
+    {
+      "page": "privacy",
+      "path": "/privacy",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dark": false
+      },
+      "overflow": false,
+      "h1": {
+        "text": "Privacy",
+        "fontSizePx": 40,
+        "lineHeightPx": 44,
+        "width": 654,
+        "height": 44
+      },
+      "axeViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "nodes": 3
+        }
+      ],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-privacy-1280-light.png"
+    },
+    {
+      "page": "terms",
+      "path": "/terms",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "dark": false
+      },
+      "overflow": false,
+      "h1": {
+        "text": "Terms",
+        "fontSizePx": 40,
+        "lineHeightPx": 44,
+        "width": 654,
+        "height": 44
+      },
+      "axeViolations": [
+        {
+          "id": "color-contrast",
+          "impact": "serious",
+          "help": "Elements must meet minimum color contrast ratio thresholds",
+          "nodes": 3
+        }
+      ],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-terms-1280-light.png"
+    },
+    {
+      "page": "home",
+      "path": "/",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "dark": true
+      },
+      "overflow": false,
+      "h1": null,
+      "axeViolations": [],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-home-375-dark.png"
+    },
+    {
+      "page": "sign-in",
+      "path": "/sign-in",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "dark": true
+      },
+      "overflow": false,
+      "h1": null,
+      "axeViolations": [],
+      "screenshot": "/Users/bikashtalukder/ai-learning/scripts/.proof/ui-quality-sign-in-375-dark.png"
+    }
+  ],
+  "h1FontSize": [
+    {
+      "page": "privacy",
+      "width": 375,
+      "fontSizePx": 28.4,
+      "inBand": true
+    },
+    {
+      "page": "terms",
+      "width": 375,
+      "fontSizePx": 28.4,
+      "inBand": true
+    },
+    {
+      "page": "privacy",
+      "width": 1280,
+      "fontSizePx": 40,
+      "inBand": true
+    },
+    {
+      "page": "terms",
+      "width": 1280,
+      "fontSizePx": 40,
+      "inBand": true
+    }
+  ],
+  "screenshots": [],
+  "axe": {
+    "critical": 0,
+    "serious": 8,
+    "moderate": 0,
+    "minor": 0,
+    "byRule": {
+      "color-contrast": 8
+    }
+  },
+  "notes": [
+    "Spec band: 28-32px @375, 36-40px @1280. clamp(1.75rem, 1.4rem + 1.6vw, 2.5rem) lands 28px @375, 30px @640, 36px @1024, 40px @1280.",
+    "Sign-in hero has decorative typography that intentionally does not use the h1 scale; h1 audit targets page-header h1 elements only."
+  ]
+}
